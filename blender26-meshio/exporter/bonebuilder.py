@@ -135,6 +135,7 @@ class BoneBuilder(object):
         # buid tree hierarchy
         def __getBone(bone, b):
             bone.hasTail=not (bl.BONE_USE_TAILOFFSET in b)
+            # TODO: Re-implement
 
             if len(b.children)==0:
                 return

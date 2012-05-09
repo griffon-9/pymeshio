@@ -178,7 +178,7 @@ def write(ex, path):
                 bone.tail_index=boneMap[b.constraintTarget]
                 bone.ik_index=int(b.constraintInfluence * 100)
 
-        export_extender.BoneSetup.postprocess_bone(b.name, bone, self.skeleton.indexByName)
+        export_extender.BoneSetup.postprocess_bone(b.name, bone, ex.skeleton.indexByName)
 
         # convert right-handed z-up to left-handed y-up
         bone.pos.x=b.pos[0] if not near(b.pos[0], 0) else 0
@@ -210,7 +210,7 @@ def write(ex, path):
     for i, b in enumerate(model.bones):
         if b.type==pmd.Bone.IK_TARGET:
             b.tail_index=0
-        print(i, b.name, b.type)
+        print(i, b.name.decode("cp932"), b.type)
 
     # 表情
     for i, m in enumerate(ex.oneSkinMesh.morphList):
@@ -341,9 +341,9 @@ def write(ex, path):
             angular_damping=0, restitution=0, friction=0, mode=0)
     def bone_index_func(jname):
         bone_name = englishmap.getEnglishBoneName(jname)
-        return boneNameMap.get(bone_name, -1) if bone_name else boneNameMap.get(jname, -1)
+        return boneMap.get(bone_name, -1) if bone_name else boneMap.get(jname, -1)
     def bone_pos_func(bone_index):
-        if 0 <= bone_index and bone_index < len(self.skeleton.bones):
+        if 0 <= bone_index and bone_index < len(ex.skeleton.bones):
             return model.bones[bone_index].pos
         else:
             return None

@@ -42,7 +42,7 @@ if "bl" in locals():
 else:
     from . import bl
 
-PYMESHIO_BASE_VERSION = "2.5.5"
+PYMESHIO_BASE_VERSION = "2.6.1"
 
 # Check: Is meshutils available ?
 def external_ops_enabled():
