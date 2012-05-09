@@ -5,13 +5,15 @@ class VertexAttribute(object):
     __slots__=[
             'nx', 'ny', 'nz', # normal
             'u', 'v', # uv
+            'edge_flag',
             ]
-    def __init__(self, nx, ny, nz, u, v):
+    def __init__(self, nx, ny, nz, u, v, edge_flag=0):
         self.nx=nx
         self.ny=ny
         self.nz=nz
         self.u=u
         self.v=v
+        self.edge_flag=edge_flag
 
     def __str__(self):
         return "<vkey: %f, %f, %f, %f, %f>" % (
@@ -21,7 +23,7 @@ class VertexAttribute(object):
         return int(100*(self.nx + self.ny + self.nz + self.u + self.v))
 
     def __eq__(self, rhs):
-        return self.nx==rhs.nx and self.ny==rhs.ny and self.nz==rhs.nz and self.u==rhs.u and self.v==rhs.v
+        return self.nx==rhs.nx and self.ny==rhs.ny and self.nz==rhs.nz and self.u==rhs.u and self.v==rhs.v and self.edge_flag==rhs.edge_flag
 
 
 class VertexKey(object):
