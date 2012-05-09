@@ -1,5 +1,8 @@
 # coding: utf-8
 
+import bpy
+
+from .. import export_extender
 
 class VertexAttribute(object):
     __slots__=[
@@ -81,15 +84,16 @@ class VertexArray(object):
 
     def each(self):
         keys=[key for key in self.indexArrays.keys()]
-        keys.sort()
+        keys.sort(key=lambda k: (bpy.data.materials[k].get("PMD_RENDER_ORDER", 0) ,k))
         for key in keys:
             yield(key, self.indexArrays[key])
 
     def __addOrGetIndex(self, obj_index, base_index, pos, normal, uv, b0, b1, weight0):
         key=VertexKey(obj_index, base_index)
+        edge_flag = export_extender.MeshSetup.get_edge_flag(base_index)
         attribute=VertexAttribute( 
                 normal[0], normal[1], normal[2],
-                uv[0], uv[1])
+                uv[0], uv[1], edge_flag)
         if key in self.vertexMap:
             if attribute in self.vertexMap[key]:
                 return self.vertexMap[key][attribute]

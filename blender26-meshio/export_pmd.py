@@ -42,6 +42,7 @@ from .pymeshio import pmd
 from .pymeshio import englishmap
 from .pymeshio.pmd import writer
 
+from . import export_extender
 
 def near(x, y, EPSILON=1e-5):
     d=x-y
@@ -65,6 +66,8 @@ def write(ex, path):
     model.english_name=englishName.encode('cp932')
     model.comment=comment.encode('cp932')
     model.english_comment=englishComment.encode('cp932')
+    
+    export_extender.PmdExporterSetup.setupModelNames(model)
 
     # 頂点
     model.vertices=[pmd.Vertex(
@@ -78,7 +81,7 @@ def write(ex, path):
         ex.skeleton.indexByName(b1),
         int(100*weight),
         # edge flag, 0: enable edge, 1: not edge
-        0 
+        attribute.edge_flag
         )
         for pos, attribute, b0, b1, weight in ex.oneSkinMesh.vertexArray.zip()]
 
@@ -105,13 +108,13 @@ def write(ex, path):
                 common.RGB(m.diffuse_color[0], m.diffuse_color[1], m.diffuse_color[2]),
                 m.alpha,
                 # specular_factor
-                0 if m.specular_toon_size<1e-5 else m.specular_toon_size * 10,
+                export_extender.MaterialSetup.specular_factor_for_material(m),
                 # specular_color
                 common.RGB(m.specular_color[0], m.specular_color[1], m.specular_color[2]),
                 # ambient_color
                 common.RGB(m.mirror_color[0], m.mirror_color[1], m.mirror_color[2]),
                 # toon
-                0,
+                export_extender.MaterialSetup.toon_index_for_material(m),
                 # flag
                 1 if m.subsurface_scattering.use else 0,
                 # vertex_count
@@ -119,6 +122,8 @@ def write(ex, path):
                 # texture
                 ('*'.join(textures) if len(textures)>0 else "").encode('cp932')
                 ))
+        export_extender.MaterialSetup.postprocess_material(model.materials[-1], m)
+        
         # 面
         for i in indices:
             assert(i<vertexCount)
@@ -172,6 +177,8 @@ def write(ex, path):
                 bone.type=pmd.Bone.TWEAK
                 bone.tail_index=boneMap[b.constraintTarget]
                 bone.ik_index=int(b.constraintInfluence * 100)
+
+        export_extender.BoneSetup.postprocess_bone(b.name, bone, self.skeleton.indexByName)
 
         # convert right-handed z-up to left-handed y-up
         bone.pos.x=b.pos[0] if not near(b.pos[0], 0) else 0
@@ -267,7 +274,6 @@ def write(ex, path):
                 toonMeshObject=o
         except:
             p(o.name)
-        break
     if toonMeshObject:
         toonMesh=bl.object.getData(toonMeshObject)
         toonMaterial=bl.mesh.getMaterial(toonMesh, 0)
@@ -326,6 +332,25 @@ def write(ex, path):
                 mode=obj[bl.RIGID_PROCESS_TYPE]
                 )
         model.rigidbodies.append(rigidBody)
+        
+    def rigid_constructor(name):
+        return pmd.RigidBody(
+            name.encode('cp932'), collision_group=0, no_collision_group=0, bone_index=0,
+            shape_position=common.Vector3(0, 0, 0), shape_rotation=common.Vector3(0, 0, 0),
+            shape_type=0, shape_size=common.Vector3(0, 0, 0), mass=0, linear_damping=0,
+            angular_damping=0, restitution=0, friction=0, mode=0)
+    def bone_index_func(jname):
+        bone_name = englishmap.getEnglishBoneName(jname)
+        return boneNameMap.get(bone_name, -1) if bone_name else boneNameMap.get(jname, -1)
+    def bone_pos_func(bone_index):
+        if 0 <= bone_index and bone_index < len(self.skeleton.bones):
+            return model.bones[bone_index].pos
+        else:
+            return None
+    for rigidBody in export_extender.RigidDefReader(bone_index_func, bone_pos_func).create_rigids(rigid_constructor):
+        rigidNameMap[rigidBody.name.decode("cp932")] = len(rigidNameMap)
+        model.rigidbodies.append(rigidBody)
+    print("RigidBody Total:", len(model.rigidbodies))
 
     # constraint
     model.joints=[pmd.Joint(
@@ -369,6 +394,17 @@ def write(ex, path):
         )
         for obj in ex.oneSkinMesh.constraints]
 
+    def joint_constructor(name):
+        return pmd.Joint(
+            name.encode('cp932'), rigidbody_index_a=0, rigidbody_index_b=0,
+            position=common.Vector3(0,0,0), rotation=common.Vector3(0,0,0),
+            translation_limit_min=common.Vector3(0,0,0), translation_limit_max=common.Vector3(0,0,0),
+            rotation_limit_min=common.Vector3(0,0,0), rotation_limit_max=common.Vector3(0,0,0),
+            spring_constant_translation=common.Vector3(0,0,0), spring_constant_rotation=common.Vector3(0,0,0) )
+    for joint in export_extender.JointDefReader(rigidNameMap).create_joints(joint_constructor):
+        model.joints.append(joint)
+    print("Joint Total:", len(model.joints))
+
     bl.message('write: %s' % path)
     with io.open(path, 'wb') as f:
         return writer.write(f, model)
@@ -379,11 +415,13 @@ def _execute(filepath='', **kwargs):
     if not active:
         print("abort. no active object.")
         return
-
-    ex=exporter.Exporter()
-    ex.setup()
-
-    write(ex, filepath)
+    with export_extender.Context.init():
+        export_extender.EnglishMap.create_customized()
+        ex=exporter.Exporter()
+        ex.setup()
+        
+        write(ex, filepath)
+        export_extender.PmdExporterSetup.store_export_info()
     bl.object.activate(active)
     return {'FINISHED'}
 

@@ -7,6 +7,7 @@ from .pymeshio import pmx
 from .pymeshio import common
 from .pymeshio.pmx import writer
 
+from . import export_extender
 
 def near(x, y, EPSILON=1e-5):
     d=x-y
@@ -384,12 +385,14 @@ def _execute(filepath):
         print("abort. no active object.")
         return
 
-    ex=exporter.Exporter()
-    ex.setup()
+    with export_extender.Context.init():
+        export_extender.EnglishMap.create_customized()
+        ex=exporter.Exporter()
+        ex.setup()
 
-    model=create_pmx(ex)
-    bl.object.activate(active)
-    with io.open(filepath, 'wb') as f:
-        writer.write(f, model)
+        model=create_pmx(ex)
+        bl.object.activate(active)
+        with io.open(filepath, 'wb') as f:
+            writer.write(f, model)
     return {'FINISHED'}
 

@@ -2,6 +2,7 @@
 from .. import bl
 from ..pymeshio import englishmap
 
+from .. import export_extender
 
 class IKChain(object):
     __slots__=['index', 'limitAngle', 'limitMin', 'limitMax']
@@ -114,10 +115,11 @@ class BoneBuilder(object):
         ####################
         # create bones
         ####################
+        matrix = armatureObj.matrix_world
         def createBone(i, b):
             bone=Bone(i, 
                     b.name, b.get(bl.BONE_ENGLISH_NAME, 'bone%04d' % i),
-                    bl.bone.getHeadLocal(b),
+                    (matrix * b.head_local)[0:3],
                     not b.hide
                     )
             if bl.BONE_CAN_TRANSLATE in b:
@@ -137,7 +139,7 @@ class BoneBuilder(object):
             if len(b.children)==0:
                 return
 
-            for i, c in enumerate(b.children):
+            for i, c in enumerate(export_extender.BoneSetup.sort_children(b.children)):
                 child=self.boneMap[c.name]
                 if bone:
                     child.parent_index=bone.index
@@ -145,10 +147,12 @@ class BoneBuilder(object):
                     bone.connected=child
                 __getBone(child, c)
 
-        for bone, b in zip(self.bones, armature.bones.values()):
-            if not b.parent:
-                # root bone
-                __getBone(bone, b)
+#        for bone, b in zip(self.bones, armature.bones.values()):
+#            if not b.parent:
+#                # root bone
+#                __getBone(bone, b)
+        for b in export_extender.BoneSetup.select_root_bones(armature.bones):
+            __getBone(self.boneMap[b.name], b)
 
         ####################
         # get pose bone info
@@ -225,7 +229,7 @@ class BoneBuilder(object):
         ####################
 
         # boneのsort
-        self._sortBy()
+        #self._sortBy()
         self._fix()
         self._build_hierarchy()
         # IKのsort
@@ -288,6 +292,8 @@ class BoneBuilder(object):
                 parent_b=self.bones[b.parent_index]
                 if parent_b.connected:
                     parent_b.tail_index=parent_b.connected.index
+                if export_extender.BoneSetup.is_overridden(b.name):
+                    continue
                 if b.constraint==CONSTRAINT_LIMIT_TRANSLATION:
                     # 移動不可ボーン
                     if b.isVisible and parent_b.isFixedAxis():

@@ -18,7 +18,7 @@ if 'bpy' in locals():
     import imp
     def reload_module(name):
         if name in locals():
-            imp.reaload(locals()[name])
+            imp.reload(locals()[name])
     reload_module('import_pmx')
     reload_module('export_pmx')
     reload_module('import_pmd')
@@ -27,10 +27,19 @@ if 'bpy' in locals():
     reload_module('export_mqo')
    
 
+if "export_extender" in locals():
+    imp.reload(export_extender)
+    imp.reload(meshio_tools)
+else:
+    from . import export_extender
+    from . import meshio_tools
+
+
 import bpy
 import bpy_extras.io_utils
 from . import bl
-
+from . import import_pmd
+from . import export_pmd
 
 class ImportPmd(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     '''Import from PMD file format (.pmd)'''
@@ -239,6 +248,7 @@ def register():
     bpy.types.INFO_MT_file_export.append(ExportPmd.menu_func)
     bpy.types.INFO_MT_file_export.append(ExportPmx.menu_func)
     bpy.types.INFO_MT_file_export.append(ExportMqo.menu_func)
+    meshio_tools.register()
 
 def unregister():
     bpy.utils.unregister_module(__name__)
@@ -248,6 +258,7 @@ def unregister():
     bpy.types.INFO_MT_file_export.remove(ExportPmd.menu_func)
     bpy.types.INFO_MT_file_export.remove(ExportPmx.menu_func)
     bpy.types.INFO_MT_file_export.remove(ExportMqo.menu_func)
+    meshio_tools.unregister()
 
 
 if __name__=='__main__':

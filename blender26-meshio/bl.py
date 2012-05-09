@@ -773,6 +773,8 @@ CONSTRAINT_SPRING_POS='const_spring_pos'
 CONSTRAINT_SPRING_ROT='const_spring_rot'
 TOON_TEXTURE_OBJECT='ToonTextures'
 
+MMD_EDGEFLAG_GROUP_NAME='_MMD_NO_EDGE'
+
 MATERIALFLAG_BOTHFACE='material_flag_bothface'
 MATERIALFLAG_GROUNDSHADOW='material_flag_groundshadow'
 MATERIALFLAG_SELFSHADOWMAP='material_flag_selfshadowmap'

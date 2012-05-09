@@ -4,6 +4,7 @@ from . import vertexarray
 from .. import bl
 from ..pymeshio import englishmap
 
+from .. import export_extender
 
 class Morph(object):
     __slots__=['name', 'type', 'offsets']
@@ -81,10 +82,17 @@ class OneSkinMesh(object):
     def addMesh(self, obj):
         if not bl.object.isVisible(obj):
             return
+        if not obj.is_visible(bpy.context.scene):
+            return
         self.__mesh(obj)
-        self.__skin(obj)
+        #self.__skin(obj)
         self.__rigidbody(obj)
         self.__constraint(obj)
+
+    def __get_vgelements(self, obj, v):
+        """Get iterator of VertexGroupElement from MeshVertex."""
+        return ( g for g in v.groups
+                    if not obj.vertex_groups[g.group].name.startswith("_") )
 
     def __getWeightMap(self, obj, mesh):
         # bone weight
@@ -116,7 +124,7 @@ class OneSkinMesh(object):
         # ToDo bone weightと関係ないvertex groupを除外する
         for i, v in enumerate(mesh.vertices):
             if len(v.groups)>0:
-                for g in v.groups:
+                for g in self.__get_vgelements(obj, v):
                     setWeight(i, obj.vertex_groups[g.group].name, g.weight)
             else:
                 try:
@@ -128,7 +136,9 @@ class OneSkinMesh(object):
         # 合計値が1になるようにする
         for i in range(len(mesh.vertices)):
             if i in secondWeightMap:
-                secondWeightMap[i]=(secondWeightMap[i][0], 1.0-weightMap[i][1])
+                _weights = export_extender.Math.normalize(weightMap[i][1], secondWeightMap[i][1])
+                weightMap[i]      =(weightMap[i][0]      , _weights[0])
+                secondWeightMap[i]=(secondWeightMap[i][0], _weights[1])
             elif i in weightMap:
                 weightMap[i]=(weightMap[i][0], 1.0)
                 secondWeightMap[i]=("", 0)
@@ -343,31 +353,40 @@ class OneSkinMesh(object):
         bl.message("export: %s" % obj.name)
 
         # メッシュのコピーを生成してオブジェクトの行列を適用する
-        copyMesh, copyObj=bl.object.duplicate(obj)
+        copyMesh, copyObj = export_extender.MeshSetup.duplicate_obj_for_export(obj)
         copyObj.name="tmp_object"
-        if len(copyMesh.vertices)>0:
-            # apply transform
-            copyMesh.transform(obj.matrix_world)
+        try:
+            if len(copyMesh.vertices)>0:
+                # apply transform
+                #copyMesh.transform(obj.matrix_world)
+                export_extender.MeshSetup.transform_mesh(copyMesh, obj.matrix_world)
+                export_extender.MeshSetup.set_current_mesh_obj(copyObj)
+                
+                # Auto-complement Asymmetry ShapeKeys
+                export_extender.MeshSetup.autocomplete_shapekeys(obj)
+                
+                # apply modifier
+                for m in [m for m in copyObj.modifiers]:
+                    if m.type=='SOLIDFY':
+                        continue
+                    elif m.type=='ARMATURE':
+                        continue
+                    elif m.type=='MIRROR':
+                        bpy.ops.object.modifier_apply(modifier=m.name)
+                    else:
+                        print(m.type)
 
-            # apply modifier
-            for m in [m for m in copyObj.modifiers]:
-                if m.type=='SOLIDFY':
-                    continue
-                elif m.type=='ARMATURE':
-                    continue
-                elif m.type=='MIRROR':
-                    bpy.ops.object.modifier_apply(modifier=m.name)
-                else:
-                    print(m.type)
-
-            weightMap, secondWeightMap=self.__getWeightMap(copyObj, copyMesh)
-            self.__processFaces(obj.name, copyMesh, weightMap, secondWeightMap)
-        bl.object.delete(copyObj)
+                weightMap, secondWeightMap=self.__getWeightMap(copyObj, copyMesh)
+                self.__processFaces(obj.name, copyMesh, weightMap, secondWeightMap)
+                self.__skin(copyObj, obj.name)
+        finally:
+            bl.object.delete(copyObj)
+            export_extender.MeshSetup.set_current_mesh_obj(None)
 
     def createEmptyBasicSkin(self):
         self.__getOrCreateMorph('base', 0)
 
-    def __skin(self, obj):
+    def __skin(self, obj, obj_name):
         if not bl.object.hasShapeKey(obj):
             return
 
@@ -377,6 +396,9 @@ class OneSkinMesh(object):
 
         # shape keys
         vg=bl.object.getVertexGroup(obj, bl.MMD_SHAPE_GROUP_NAME)
+        if len(vg) == 0:
+            print("Auto-complement SHAPE_GROUP :", obj_name)
+            vg = list(range(len(blenderMesh.vertices)))
 
         # base
         used=set()
@@ -385,12 +407,12 @@ class OneSkinMesh(object):
                 baseMorph=self.__getOrCreateMorph('base', 0)
                 basis=b
 
-                relativeIndex=0
+                relativeIndex = len(baseMorph.offsets)
                 for index in vg:
                     v=bl.shapekey.getByIndex(b, index)
                     pos=[v[0], v[1], v[2]]
 
-                    indices=self.vertexArray.getMappedIndex(obj.name, index)
+                    indices=self.vertexArray.getMappedIndex(obj_name, index)
                     for attribute, i in indices.items():
                         if i in used:
                             continue
@@ -422,7 +444,7 @@ class OneSkinMesh(object):
                 if offset[0]==0 and offset[1]==0 and offset[2]==0:
                     continue
                 if index in vg:
-                    indices=self.vertexArray.getMappedIndex(obj.name, index)
+                    indices=self.vertexArray.getMappedIndex(obj_name, index)
                     for attribute, i in indices.items():
                         if i in used:
                             continue
