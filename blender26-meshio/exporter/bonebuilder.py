@@ -116,12 +116,13 @@ class BoneBuilder(object):
         ####################
         # create bones
         ####################
+        export_extender.BoneDB.scan_armature(armatureObj)
         matrix = armatureObj.matrix_world
         def createBone(i, b):
-            bone=Bone(i, 
+            bone=Bone(export_extender.BoneDB.index_by_name(b.name),
                     b.name, b.get(bl.BONE_ENGLISH_NAME, 'bone%04d' % i),
                     (matrix * b.head_local)[0:3],
-                    not b.hide
+                    not b.hide and export_extender.BoneDB.get_by_name(b.name).layer_visible
                     )
             if bl.BONE_CAN_TRANSLATE in b:
                 pass
@@ -129,6 +130,7 @@ class BoneBuilder(object):
                 bone.constraint=CONSTRAINT_LIMIT_TRANSLATION
             return bone
         self.bones=[createBone(i, b) for i, b in enumerate(armature.bones.values())]
+        self.bones.sort(key=lambda bone: bone.index)
         # name map
         for bone in self.bones:
             self.boneMap[bone.name]=bone
@@ -136,12 +138,11 @@ class BoneBuilder(object):
         # buid tree hierarchy
         def __getBone(bone, b):
             bone.hasTail=not (bl.BONE_USE_TAILOFFSET in b)
-            # TODO: Re-implement
 
             if len(b.children)==0:
                 return
 
-            for i, c in enumerate(export_extender.BoneSetup.sort_children(b.children)):
+            for i, c in enumerate(b.children):
                 child=self.boneMap[c.name]
                 if bone:
                     child.parent_index=bone.index
@@ -149,12 +150,10 @@ class BoneBuilder(object):
                     bone.connected=child
                 __getBone(child, c)
 
-#        for bone, b in zip(self.bones, armature.bones.values()):
-#            if not b.parent:
-#                # root bone
-#                __getBone(bone, b)
-        for b in export_extender.BoneSetup.select_root_bones(armature.bones):
-            __getBone(self.boneMap[b.name], b)
+        for bone, b in zip(self.bones, armature.bones.values()):
+            if not b.parent:
+                # root bone
+                __getBone(bone, b)
 
         ####################
         # get pose bone info
@@ -172,6 +171,8 @@ class BoneBuilder(object):
                 bone.canTranslate=True
 
             for c in b.constraints:
+                if c.name.startswith("_"):
+                    continue
                 if bl.constraint.isIKSolver(c):
                     # IK effector
                     ####################
@@ -184,7 +185,7 @@ class BoneBuilder(object):
                     target=self.boneByName(bl.constraint.ikTarget(c))
                     target.ikSolver=IKSolver(target.index, effector.index, 
                                 int(c.iterations * 0.1), 
-                                armature.bones[target.name].get(bl.IK_UNITRADIAN, 0)
+                                armature.bones[target.name].get(bl.IK_UNITRADIAN, 0.5)
                                 )
                     # ik chain
                     ####################

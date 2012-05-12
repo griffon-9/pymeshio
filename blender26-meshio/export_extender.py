@@ -21,6 +21,9 @@
 #  3. This notice may not be removed or altered from any source distribution.
 # 
 
+# See also
+# http://www.blender.org/education-help/faq/gpl-for-artists
+#
 
 import bpy
 
@@ -39,8 +42,10 @@ import sys
 # Import pymeshio constant definitions
 if "bl" in locals():
     imp.reload(bl)
+    imp.reload(pymeshio)
 else:
     from . import bl
+    from . import pymeshio
 
 PYMESHIO_BASE_VERSION = "2.6.1"
 
@@ -149,8 +154,9 @@ class Context:
         self.__exit_handler.append(func)
     
     @classmethod
-    def init(cls):
+    def init(cls, mode='pmd'):
         cls.__current = Context()
+        cls.__current.mode = mode
         return cls.__current
     
     @classmethod
@@ -216,7 +222,7 @@ class EnglishMap:
         """ビルトインのenglishmapを複製して内部初期化する"""
         if cls.englishmap:
             return
-        cls.englishmap = __import__("blender26-meshio.pymeshio.englishmap").pymeshio.englishmap
+        cls.englishmap = pymeshio.englishmap
         if "boneMapOrig" in dir(cls.englishmap):
             return
         cls.englishmap.boneMapOrig = cls.englishmap.boneMap[:]
@@ -321,12 +327,87 @@ class MeshSetup:
         output = bpy.context.active_object
         return output.data, output
 
+class BoneDB:
+    class BoneData:
+        """Boneの情報を保持するクラス（Blender側への参照を保持するのは良くない）"""
+        def __init__(self, name):
+            self.name = name
+            self.level = 0 # 変形階層
+            self.parent = None # BoneData of parent
+            self.has_children = False
+            self.use_connect = True
+            self.use_deform = True
+            self.layer_visible = True # Layer which this bone exists in is visible.
+    
+    def __init__(self):
+        self.name_list = []
+        self.bone_map  = {}
+    
+    def get_data(self, name):
+        if not name in self.bone_map:
+            self.bone_map[name] = self.BoneData(name)
+            self.name_list.append(name)
+        return self.bone_map[name]
+    
+    def __scan_bones(self, parent, bones, level, pose):
+        if parent:
+            parent_data = self.bone_map[parent.name]
+            parent_data.has_children = True
+        else:
+            parent_data = None
+        # Recursive Scanning
+        for b in bones:
+            data = self.get_data(b.name)
+            data.level = level
+            data.parent = parent_data
+            data.use_connect = b.use_connect
+            data.use_deform = b.use_deform
+            self.__scan_bones(b, self.sort_sibling_bones(b.children), level + 1, pose)
+    def __scan_layers(self, armature):
+        for b in armature.bones:
+            data = self.get_data(b.name)
+            data.layer_visible = any( (a and b) for a, b in zip(armature.layers, b.layers) )
+    
+    @classmethod
+    def current(cls):
+        ctx = Context.current()
+        if not ctx.bone_db:
+            ctx.bone_db = BoneDB()
+        return ctx.bone_db
+    
+    @staticmethod
+    def sort_sibling_bones(bones):
+        """兄弟ボーンを重み付けしてソートする"""
+        return sorted(bones, key=lambda b: len(b.children_recursive), reverse=True)
+    
+    @classmethod
+    def index_by_name(cls, name):
+        return cls.current().name_list.index(name)
+    
+    @classmethod
+    def get_by_name(cls, name):
+        return cls.current().bone_map[name]
+    
+    @classmethod
+    def scan_armature(cls, obj):
+        """Exportの準備のためにArmature Objectから情報を収集する"""
+        db = cls.current()
+        # parentなしBoneを選別する
+        no_parents = [ b for b in obj.data.bones if not b.parent ]
+        pose = obj.pose
+        # Bone & Poseの解析
+        db.__scan_bones(None, no_parents, 0, pose)
+        # Armature Layerの解析
+        db.__scan_layers(obj.data)
+
+
 class BoneSetup:
     @classmethod
     def __context(cls):
         ctx = Context.current()
         if ctx.special_bones is None:
             ctx.special_bones = Config().lookup("bone.override", {})
+            ctx.bone_strategy = Config().lookup_ex("bone.strategy", None)
         return ctx
     
     @classmethod
@@ -346,8 +427,16 @@ class BoneSetup:
                         key=lambda b: len(b.children_recursive), reverse=True )
 
     @classmethod
+    def __handle_bone_compat(cls, bone_name, bone):
+        val = pymeshio.englishmap.getUnicodeBoneName(bone_name)
+        if val and len(val) > 2:
+            bone.type = val[2]
+
+    @classmethod
     def postprocess_bone(cls, bone_name, bone, index_func):
         ctx = cls.__context()
+        if ctx.bone_strategy == 'PYMESHIO_1X_COMPAT':
+            cls.__handle_bone_compat(bone_name, bone)
         if bone_name in ctx.special_bones:
             bone_param = ctx.special_bones[bone_name]
             if "type" in bone_param:
@@ -577,6 +666,13 @@ class Config(collections.UserDict):
             return result
         except KeyError:
             return default
+    
+    def lookup_ex(self, key, default=None):
+        mode = Context.current().mode
+        value = self.lookup(key, default)
+        if isinstance(value, dict) and (mode in value):
+            value = value[mode]
+        return value
 
 class PmdExporterSetup:
     @classmethod
@@ -595,6 +691,8 @@ class PmdExporterSetup:
         
         cls.__mapping = {
             "bl_version": ("%d.%d.%d" % bpy.app.version) + bpy.app.version_char,
+            "bl_revision": bpy.app.build_revision.decode("UTF-8"),
+            "mode": Context.current().mode,
             "date": datetime.datetime.now().strftime("%Y/%m/%d %H:%M"),
             "pymeshio_version": PYMESHIO_BASE_VERSION,
         } if conf.get("template", True) else None
@@ -626,29 +724,5 @@ class PmdExporterSetup:
 
 # DEBUG
 print("INFO: export_extender loaded.")
-
-if __name__ == "__main__":
-    class Vector:
-        def __init__(self, x = 0.0, y=0.0, z=0.0):
-            self.x, self.y, self.z = x, y, z
-        def __repr__(self):
-            return "(%s, %s, %s)" % (self.x, self.y, self.z)
-
-    class Test:
-        def __init__(self, name):
-            self.name = name
-            self.position = Vector()
-            self.rotation = Vector()
-    
-    class Test2:
-        def __init__(self, name):
-            self.name = name
-            self.pos, self.rot, \
-            self.constraintPosMin, self.constraintPosMax, \
-            self.constraintRotMin, self.constraintRotMax, \
-            self.springPos, self.springRot \
-                = (Vector() for i in range(8))
-    
-
 
 
