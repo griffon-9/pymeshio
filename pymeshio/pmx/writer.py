@@ -17,7 +17,7 @@ class Writer(common.BinaryWriter):
         super(Writer, self).__init__(ios)
         if text_encoding==0:
             def write_text(unicode):
-               utf16=unicode.encode('utf16') 
+               utf16=unicode.encode('utf_16_le')
                self.write_int(len(utf16), 4)
                self.write_bytes(utf16)
             self.write_text=write_text

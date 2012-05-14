@@ -393,6 +393,6 @@ def _execute(filepath):
         model=create_pmx(ex)
         bl.object.activate(active)
         with io.open(filepath, 'wb') as f:
-            writer.write(f, model)
+            writer.write(f, model, 0)
     return {'FINISHED'}
 
