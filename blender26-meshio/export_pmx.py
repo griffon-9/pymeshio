@@ -26,6 +26,8 @@ def create_pmx(ex):
     model.comment=o.get(bl.MMD_MB_COMMENT, 'Blnderエクスポート\n')
     model.english_comment=o.get(bl.MMD_ENGLISH_COMMENT, 'blender export commen\n')
 
+    export_extender.PmxExporterSetup.setupModelNames(model)
+
     def get_deform(b0, b1, weight):
         if b0==-1:
             return pmx.Bdef1(b1, weight)
@@ -60,10 +62,12 @@ def create_pmx(ex):
             return common.Vector3(0, 0, 0)
     
     def create_bone(b):
+        namepair = export_extender.EnglishMap.handle_names(
+            'BONE', b.name, b.english_name)
 
         bone=pmx.Bone(
-            name=b.name,
-            english_name=b.english_name,
+            name=namepair.name,
+            english_name=namepair.english_name,
             # convert right-handed z-up to left-handed y-up
             position=common.Vector3(
                 b.pos[0] if not near(b.pos[0], 0) else 0,
@@ -254,10 +258,14 @@ def create_pmx(ex):
                 english_name=en
                 panel=p
                 break
+        namepair = export_extender.EnglishMap.handle_names(
+            'MORPH', m.name, english_name)
+        panel = export_extender.EnglishMap.get_additional_data(
+            'MORPH', namepair, panel)
 
         morph=pmx.Morph(
-                name=m.name,
-                english_name=english_name,
+                name=namepair.name,
+                english_name=namepair.english_name,
                 panel=panel,
                 morph_type=1,
                 )
@@ -271,6 +279,8 @@ def create_pmx(ex):
     # ボーングループ
     model.display_slots=[]
     for name, members in ex.skeleton.bone_groups:
+        namepair = export_extender.EnglishMap.handle_names(
+            'BONEGROUP', name, englishmap.getEnglishBoneGroupName(name))
         if name=="表情":
             slot=pmx.DisplaySlot(
                     name=name,
@@ -282,8 +292,8 @@ def create_pmx(ex):
 
         else:
             slot=pmx.DisplaySlot(
-                    name=name,
-                    english_name=englishmap.getEnglishBoneGroupName(name),
+                    name=namepair.name,
+                    english_name=namepair.english_name,
                     special_flag=1 if name=="Root" else 0
                     )
             slot.references=[(0, ex.skeleton.boneByName(m).index) for m in members]
@@ -388,7 +398,7 @@ def _execute(filepath):
         print("abort. no active object.")
         return
 
-    with export_extender.Context.init():
+    with export_extender.Context.init("pmx"):
         export_extender.EnglishMap.create_customized()
         ex=exporter.Exporter()
         ex.setup()

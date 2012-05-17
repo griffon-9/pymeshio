@@ -135,7 +135,8 @@ class ExportInfo:
 class Context:
     __current = None
     
-    def __init__(self):
+    def __init__(self, mode):
+        self.mode = mode
         self.__exit_handler = [ ]
         self.export_info = ExportInfo()
     
@@ -155,8 +156,7 @@ class Context:
     
     @classmethod
     def init(cls, mode='pmd'):
-        cls.__current = Context()
-        cls.__current.mode = mode
+        cls.__current = Context(mode)
         return cls.__current
     
     @classmethod
@@ -244,6 +244,59 @@ class EnglishMap:
         cls.englishmap.skinMap = cls.englishmap.skinMapOrig[:]
         editor = cls.MapEditor(cls.englishmap.skinMap)
         editor.apply_cmds(conf.lookup("englishmap.skin", []))
+
+    class NamePair:
+        __slots__ = [ 'name', 'english_name', 'bl_name' ]
+        def __init__(self, name, eng, bl_name):
+            self.name, self.english_name, self.bl_name = name, eng, bl_name
+
+    class StrategyNone:
+        def handle_names(self, nameMap, name, english_name):
+            return EnglishMap.NamePair(name, english_name, name)
+        def get_additional_data(self, nameMap, namepair, default):
+            return next(( entry[2] for entry in nameMap
+                if entry[1] == namepair.bl_name and len(entry) > 2 ), default)
+
+    class StrategyBlenderEN:
+        """出力する名前についてBlender側を英語名とみなす変換規則を適用する"""
+        def handle_names(self, nameMap, name, english_name):
+            j_name = next(( entry[1] for entry in nameMap if entry[0] == name ), name)
+            return EnglishMap.NamePair(j_name, name, name)
+        def get_additional_data(self, nameMap, namepair, default):
+            return next(( entry[2] for entry in nameMap
+                if entry[0] == namepair.bl_name and len(entry) > 2 ), default)
+
+    @classmethod
+    def __get_name_strategy(cls):
+        ctx = Context.current()
+        if ctx.name_strategy is None:
+            conf_val = Config().lookup_ex("englishmap.strategy", None)
+            if conf_val == "BLENDER_EN":
+                ctx.name_strategy = cls.StrategyBlenderEN()
+            else:
+                ctx.name_strategy = cls.StrategyNone()
+        return ctx.name_strategy
+
+    @classmethod
+    def handle_names(cls, name_type, name, english_name):
+        """出力する名前について変換規則を設定に応じて変更する"""
+        _maps = {
+            'BONE': cls.englishmap.boneMap,
+            'BONEGROUP': cls.englishmap.boneGroupMap,
+            'MORPH': cls.englishmap.skinMap,
+        }
+        return cls.__get_name_strategy().handle_names(
+                    _maps[name_type], name, english_name)
+
+    @classmethod
+    def get_additional_data(cls, name_type, namepair, default=None):
+        _maps = {
+            'BONE': cls.englishmap.boneMap,
+            'BONEGROUP': cls.englishmap.boneGroupMap,
+            'MORPH': cls.englishmap.skinMap,
+        }
+        return cls.__get_name_strategy().get_additional_data(
+                    _maps[name_type], namepair, default)
 
 
 class MeshSetup:
@@ -674,40 +727,50 @@ class Config(collections.UserDict):
             value = value[mode]
         return value
 
-class PmdExporterSetup:
+class ModelSetup:
+    @classmethod
+    def __get_mapping(cls):
+        ctx = Context.current()
+        if ctx.__mapping is None:
+            ctx.__mapping = {
+                "bl_version": ("%d.%d.%d" % bpy.app.version) + bpy.app.version_char,
+                "bl_revision": bpy.app.build_revision.decode("UTF-8"),
+                "mode": Context.current().mode,
+                "date": datetime.datetime.now().strftime("%Y/%m/%d %H:%M"),
+                "pymeshio_version": PYMESHIO_BASE_VERSION,
+            }
+        return ctx.__mapping
+
     @classmethod
     def __get_str(cls, conf, key, multiline=False):
         if isinstance(conf[key], list):
-            _str = "\n".join(conf[key]) if multiline else conf[key][0]
+            _str = "\r\n".join(conf[key]) if multiline else conf[key][0]
         else:
             _str = conf[key]
-        if cls.__mapping is not None:
-            _str = string.Template(_str).safe_substitute(cls.__mapping)
+        if conf.get("template", True) :
+            _str = string.Template(_str).safe_substitute(cls.__get_mapping())
         return _str
-    
+
+    @classmethod
+    def setattr_by_conf(cls, model, attr_name, key, conf, multiline, str_func = lambda x: x):
+        if key in conf:
+            val = cls.__get_str(conf, key, multiline)
+            setattr(model, attr_name, str_func(val))
+
+class PmdExporterSetup:
     @classmethod
     def setupModelNames(cls, model):
-        conf = Config().get("pmd", {})
+        conf = Config().get("pmd", None)
+        if conf is None:
+            conf = Config().get("model", {})
         
-        cls.__mapping = {
-            "bl_version": ("%d.%d.%d" % bpy.app.version) + bpy.app.version_char,
-            "bl_revision": bpy.app.build_revision.decode("UTF-8"),
-            "mode": Context.current().mode,
-            "date": datetime.datetime.now().strftime("%Y/%m/%d %H:%M"),
-            "pymeshio_version": PYMESHIO_BASE_VERSION,
-        } if conf.get("template", True) else None
-        #pprint(cls.__mapping)
+        _name_func    = lambda s: truncate_str_in_bytes(s, 20).encode("cp932")
+        _comment_func = lambda s: truncate_str_in_bytes(s, 256).encode("cp932")
         
-        if model is None:
-            return
-        if "name" in conf:
-            model.name = truncate_str_in_bytes(cls.__get_str(conf, "name"), 20).encode("cp932")
-        if "comment" in conf:
-            model.comment = truncate_str_in_bytes(cls.__get_str(conf, "comment", True), 256).encode("cp932")
-        if "e_name" in conf:
-            model.english_name = truncate_str_in_bytes(cls.__get_str(conf, "e_name"), 20).encode("cp932")
-        if "e_comment" in conf:
-            model.english_comment = truncate_str_in_bytes(cls.__get_str(conf, "e_comment", True), 256).encode("cp932")
+        ModelSetup.setattr_by_conf(model, "name", "name", conf, False, _name_func)
+        ModelSetup.setattr_by_conf(model, "comment", "comment", conf, True, _comment_func)
+        ModelSetup.setattr_by_conf(model, "english_name", "e_name", conf, False, _name_func)
+        ModelSetup.setattr_by_conf(model, "english_comment", "e_comment", conf, True, _comment_func)
 
     @classmethod
     def store_export_info(cls):
@@ -721,6 +784,17 @@ class PmdExporterSetup:
             text = bpy.data.texts.new(text_name)
         bpy.context.scene["PMD_EXPORT_INFO"] = text.name
         text.from_string(Context.current().export_info.as_string())
+
+class PmxExporterSetup:
+    @classmethod
+    def setupModelNames(cls, model):
+        conf = Config().get("pmx", None)
+        if conf is None:
+            conf = Config().get("model", {})
+        ModelSetup.setattr_by_conf(model, "name", "name", conf, False)
+        ModelSetup.setattr_by_conf(model, "comment", "comment", conf, True)
+        ModelSetup.setattr_by_conf(model, "english_name", "e_name", conf, False)
+        ModelSetup.setattr_by_conf(model, "english_comment", "e_comment", conf, True)
 
 # DEBUG
 print("INFO: export_extender loaded.")
