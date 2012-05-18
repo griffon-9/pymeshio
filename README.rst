@@ -98,6 +98,14 @@ Usage as python module
 
 New
 ---
+2.6.3 (2012-05-18)
+~~~~~~~~~~~~~~~~~~
+* fix pmx writing for utf-16-le. change default encoding to utf-16-le
+
+2.6.2 (2012-05-17)
+~~~~~~~~~~~~~~~~~~
+* fix export_pmd bug that flip face. thanks to griffon-9
+
 2.6.1 (2012-05-03)
 ~~~~~~~~~~~~~~~~~~
 * implement pmd importer/exporter
