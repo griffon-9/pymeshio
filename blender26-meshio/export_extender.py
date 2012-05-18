@@ -47,7 +47,7 @@ else:
     from . import bl
     from . import pymeshio
 
-PYMESHIO_BASE_VERSION = "2.6.1"
+PYMESHIO_BASE_VERSION = "2.6.3"
 
 # Check: Is meshutils available ?
 def external_ops_enabled():
@@ -469,27 +469,20 @@ class BoneSetup:
         return bone_name in ctx.special_bones
 
     @classmethod
-    def select_root_bones(cls, bone_list):
-        """Armatureのボーンから親のないものを選別し、sortしてlistで返す"""
-        return sorted( filter(lambda b: not b.parent, bone_list),
-                        key=lambda b: len(b.children_recursive), reverse=True )
-
-    @classmethod
-    def sort_children(cls, bone_list):
-        return sorted(bone_list,
-                        key=lambda b: len(b.children_recursive), reverse=True )
-
-    @classmethod
-    def __handle_bone_compat(cls, bone_name, bone):
+    def __handle_bone_compat(cls, bone_name, bone, index_func):
+        """pymeshio 1.x系のボーン自動設定を再現する"""
         val = pymeshio.englishmap.getUnicodeBoneName(bone_name)
         if val and len(val) > 2:
             bone.type = val[2]
+        if bone_name == "eye_L" or bone_name == "eye_R":
+            bone.type = 5
+            bone.ik_index = index_func("eyes")
 
     @classmethod
     def postprocess_bone(cls, bone_name, bone, index_func):
         ctx = cls.__context()
         if ctx.bone_strategy == 'PYMESHIO_1X_COMPAT':
-            cls.__handle_bone_compat(bone_name, bone)
+            cls.__handle_bone_compat(bone_name, bone, index_func)
         if bone_name in ctx.special_bones:
             bone_param = ctx.special_bones[bone_name]
             if "type" in bone_param:

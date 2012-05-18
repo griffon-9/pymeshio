@@ -38,8 +38,7 @@ else:
 import bpy
 import bpy_extras.io_utils
 from . import bl
-from . import import_pmd
-from . import export_pmd
+
 
 class ImportPmd(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     '''Import from PMD file format (.pmd)'''
