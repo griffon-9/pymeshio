@@ -278,6 +278,11 @@ def create_pmx(ex):
 
     # ボーングループ
     model.display_slots=[]
+    # Auto-completion for DisplaySlot
+    if not any(name == "Root" for name, m in ex.skeleton.bone_groups):
+        ex.skeleton.bone_groups[0:0] = [ ("Root", [ ex.skeleton.bones[0].name ]) ]
+    if not any(name == "表情" for name, m in ex.skeleton.bone_groups):
+        ex.skeleton.bone_groups[1:1] = [ ("表情", [ ]) ]
     for name, members in ex.skeleton.bone_groups:
         namepair = export_extender.EnglishMap.handle_names(
             'BONEGROUP', name, englishmap.getEnglishBoneGroupName(name))
