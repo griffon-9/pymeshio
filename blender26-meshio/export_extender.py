@@ -511,8 +511,33 @@ class MaterialSetup:
         return ctx
     
     @classmethod
+    def postprocess_material_PMX(cls, material, bl_material):
+        """PMX Material用のカスタムプロパティが無いMaterialをハンドリングする"""
+        _CUSTOM_PROPS = {
+            bl.MATERIALFLAG_BOTHFACE,
+            bl.MATERIALFLAG_GROUNDSHADOW,
+            bl.MATERIALFLAG_SELFSHADOWMAP,
+            bl.MATERIALFLAG_SELFSHADOW,
+            bl.MATERIALFLAG_EDGE,
+        }
+        if not any( (key in _CUSTOM_PROPS) for key in bl_material.keys() ):
+            # 標準的と思われるフラグを補完する
+            _flag = 0x0E
+            if material.alpha < 1.0:
+                _flag |= 0x01 # export_pmd互換
+            if bl_material.subsurface_scattering.use:
+                _flag |= 0x10 # export_pmd互換
+            material.flag = _flag
+    
+    @classmethod
     def postprocess_material(cls, material, bl_material):
         ctx = cls.__context()
+        
+        material.specular_factor = cls.specular_factor_for_material(bl_material)
+        
+        if ctx.mode == 'pmx':
+            cls.postprocess_material_PMX(material, bl_material)
+        
         if bl_material.name in ctx.material_override:
             m_param = ctx.material_override[bl_material.name]
             if "diffuse" in m_param:
@@ -536,6 +561,7 @@ class MaterialSetup:
     
     @classmethod
     def toon_index_for_material(cls, m):
+        """PMD用にToonテクスチャのインデックスを取得する"""
         toonMeshObject = get_toon_mesh_object()
         if toonMeshObject is None:
             return 0
@@ -543,14 +569,36 @@ class MaterialSetup:
         for m_tex in ( slot.texture for slot in m.texture_slots if slot is not None ):
             for i in range(10):
                 if toonMaterial.texture_slots[i].texture == m_tex:
-                    #print("  toon_index:", m.name, ">", i)
                     return i
         return 0
     
     @classmethod
+    def get_toon_texture_compat(cls, model, m):
+        """PMX出力時においてexport_pmd式のToonテクスチャをハンドリングする"""
+        # disabledなテクスチャを探す
+        toon_filename = None
+        for texture in ( slot.texture for slot in m.texture_slots if (slot is not None) and (not slot.use) ):
+            if (texture.type == 'IMAGE') and (texture.image is not None) and (texture.image.source == 'FILE'):
+                # NOTE: PMX形式としては相対パスも可能なようだが基本的に不要だろう
+                toon_filename = bpy.path.basename(texture.image.filepath)
+            else:
+                toon_filename = texture.name
+            break
+        # 共有Toonテクスチャのリストと比較する
+        SHARED_TOONS = [ "toon%02d.bmp" % i for i in range(1, 11) ]
+        if toon_filename in SHARED_TOONS:
+            return SHARED_TOONS.index(toon_filename), 1
+        elif toon_filename:
+            if toon_filename not in model.textures:
+                model.textures.append(toon_filename)
+            return model.textures.index(toon_filename), 0
+        else:
+            return -1, 0
+    
+    @classmethod
     def specular_factor_for_material(cls, m):
         if cls.MATERIAL_SHINNESS in m:
-            return int(m[cls.MATERIAL_SHINNESS])
+            return float(m[cls.MATERIAL_SHINNESS])
         else:
             return 15
 

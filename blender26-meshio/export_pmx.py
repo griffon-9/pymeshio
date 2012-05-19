@@ -186,6 +186,10 @@ def create_pmx(ex):
         if bl.MATERIAL_SHAREDTOON in m:
             toon_texture_index=m[bl.MATERIAL_SHAREDTOON]
             toon_sharing_flag=1
+        
+        if toon_texture_index < 0:
+            toon_texture_index, toon_sharing_flag = \
+                export_extender.MaterialSetup.get_toon_texture_compat(model, m)
 
         return (texture_index,
                 toon_texture_index, toon_sharing_flag,
@@ -235,6 +239,7 @@ def create_pmx(ex):
                 comment='',
                 vertex_count=len(indices)
                 ))
+        export_extender.MaterialSetup.postprocess_material(model.materials[-1], m)
         # 面
         for i in indices:
             assert(i<vertexCount)
