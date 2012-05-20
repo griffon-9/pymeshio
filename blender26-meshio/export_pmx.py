@@ -116,6 +116,8 @@ def create_pmx(ex):
                         for c in b.ikSolver.chain
                         ])
 
+        bone.layer = export_extender.BoneDB.get_by_name(namepair.bl_name).level
+
         return bone
 
     model.bones=[create_bone(b) for b in ex.skeleton.bones]

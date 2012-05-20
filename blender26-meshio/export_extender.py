@@ -371,14 +371,22 @@ class BoneDB:
         """Boneの情報を保持するクラス（Blender側への参照を保持するのは良くない）"""
         def __init__(self, name):
             self.name = name
-            self.level = 0 # 変形階層
+            self.level = -1 # 変形階層
             self.parent = None # BoneData of parent
             self.has_children = False
             self.use_connect = True
             self.use_deform = True
             self.layer_visible = True # Layer which this bone exists in is visible.
+            self.is_ik = False
+            self.is_ik_target = False # IK接続先
+            self.dependency = [] # 先に変形が行われる必要のあるBoneのBoneData
+        
+        def add_dependency(self, depend):
+            if depend and depend not in self.dependency:
+                self.dependency.append(depend)
     
     def __init__(self):
+        # ボーンのIndexは単に名前のリストで管理する
         self.name_list = []
         self.bone_map  = {}
     
@@ -388,7 +396,7 @@ class BoneDB:
             self.name_list.append(name)
         return self.bone_map[name]
     
-    def __scan_bones(self, parent, bones, level, pose):
+    def __scan_bones(self, parent, bones):
         if parent:
             parent_data = self.bone_map[parent.name]
             parent_data.has_children = True
@@ -397,15 +405,85 @@ class BoneDB:
         # Recursive Scanning
         for b in bones:
             data = self.get_data(b.name)
-            data.level = level
             data.parent = parent_data
+            if parent:
+                data.add_dependency(parent_data)
             data.use_connect = b.use_connect
             data.use_deform = b.use_deform
-            self.__scan_bones(b, self.sort_sibling_bones(b.children), level + 1, pose)
+            self.__scan_bones(b, self.sort_sibling_bones(b.children))
+
+    def __scan_pose(self, obj, pose):
+        # NOTE: Constraintの解析は一度全てのBoneの名前を取得した後に実行する
+        for b in pose.bones:
+            data = self.bone_map[b.name]
+            for c in b.constraints:
+                if c.name.startswith("_") or c.mute or not c.is_valid:
+                    continue
+                if bl.constraint.isIKSolver(c):
+                    # NOTE: Constraintが付いているのはPMX上でIKになるボーンではない
+                    if c.target != obj: # 外部targetは非サポート
+                        print("WARNING: external target >", c.target)
+                        continue
+                    data.is_ik_target= True
+                    # PMX/PMDでIKになるボーン
+                    ik_data = self.bone_map[c.subtarget]
+                    ik_data.is_ik = True
+                    ik_data.add_dependency(data) # IK影響下ボーン全てを追加しなくとも十分だろう
+                elif  bl.constraint.isCopyRotation(c):
+                    if c.target != obj: # 外部targetは非サポート
+                        print("WARNING: external target >", c.target)
+                        continue
+                    depend = self.bone_map[c.subtarget]
+                    data.add_dependency(depend)
+                # TODO: 移動付与を実装していない
+        # TODO: exporterで特殊ハンドリングされるBoneは？
+        # TODO: PMD出力時に設定ファイルでoverrideしている場合は？
+
     def __scan_layers(self, armature):
         for b in armature.bones:
             data = self.get_data(b.name)
             data.layer_visible = any( (a and b) for a, b in zip(armature.layers, b.layers) )
+    
+    def __process_dependency(self):
+        print("Bone Transformation Dependency Analysis...")
+        # 無限ループしないようにボーン数で最大ループ回数を制限する
+        for loop in range(len(self.name_list)):
+            # 全ボーンについて状態を調べ、変形階層が決定可能なら決定する
+            # 全ボーンの変形階層が決定するまで繰り返す
+            pending = len(self.name_list)
+            for name in self.name_list:
+                data = self.bone_map[name]
+                # 変形階層を計算済みのボーンはスキップ
+                if data.level >= 0:
+                    pending -= 1
+                    continue
+                # 依存ボーンの変形階層は計算済みか？
+                if all(depend.level >= 0 for depend in data.dependency):
+                    if len(data.dependency) == 0:
+                        # 依存ボーンが無いならば変形階層は計算せずに決まる
+                        data.level = 0
+                    else:
+                        max_data = max( data.dependency, \
+                            key=lambda d: (d.level, self.name_list.index(d.name)) )
+                        if self.name_list.index(max_data.name) < self.name_list.index(data.name):
+                            # 依存ボーンで最大の変形階層のボーンが当該ボーンよりも
+                            # Indexが小さいなら同一変形階層でも良い
+                            # （変形階層が不必要に深くなるのを防ぐ）
+                            # 事前にボーンの親子関係を考慮してIndexを仮決定している
+                            # ことが大前提
+                            data.level = max_data.level
+                        else:
+                            # 依存関係がIndex順を逆転するなどの場合は変形階層を加算
+                            data.level = max_data.level + 1
+                    pending -= 1
+            # 全ボーンの変形階層を計算できた場合は処理を打ち切る
+            if pending == 0:
+                print("  complete at iteration %d" % loop)
+                break
+            elif loop == len(self.name_list) - 1:
+                # NOTE: ボーンの依存関係がループしている場合は何回ループしても完了しない
+                print("  incomplete error!!")
+
     
     @classmethod
     def current(cls):
@@ -435,9 +513,12 @@ class BoneDB:
         no_parents = [ b for b in obj.data.bones if not b.parent ]
         pose = obj.pose
         # Bone & Poseの解析
-        db.__scan_bones(None, no_parents, 0, pose)
+        db.__scan_bones(None, no_parents)
+        db.__scan_pose(obj, pose)
         # Armature Layerの解析
         db.__scan_layers(obj.data)
+        # 変形依存関係の計算
+        db.__process_dependency()
 
 
 class BoneSetup:
