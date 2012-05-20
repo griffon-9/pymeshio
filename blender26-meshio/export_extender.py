@@ -94,20 +94,6 @@ def get_toon_material():
     toon_obj = get_toon_mesh_object()
     return toon_obj.data.materials[0] if (toon_obj and toon_obj.data and len(toon_obj.data.materials) > 0) else None
 
-def create_edge_flag_func(obj):
-    class EdgeFlagTestFunc:
-        def __init__(self, obj):
-            self.vg_index = -1
-            for i, vg in enumerate(obj.vertex_groups):
-                if vg.name == bl.MMD_EDGEFLAG_GROUP_NAME:
-                    self.vg_index = i
-                    break;
-        def __call__(self, v):
-            if any( ( g.group == self.vg_index for g in v.groups) ):
-                return 1
-            else:
-                return 0
-    return EdgeFlagTestFunc(obj)
 
 class Math:
     @staticmethod
