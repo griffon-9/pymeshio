@@ -578,7 +578,7 @@ class MaterialSetup:
         return ctx
     
     @classmethod
-    def postprocess_material_PMX(cls, material, bl_material):
+    def __postprocess_material_PMX(cls, material, bl_material):
         """PMX Material用のカスタムプロパティが無いMaterialをハンドリングする"""
         _CUSTOM_PROPS = {
             bl.MATERIALFLAG_BOTHFACE,
@@ -597,31 +597,46 @@ class MaterialSetup:
             material.flag = _flag
     
     @classmethod
+    def __apply_override(cls, ctx, material, m_param):
+        if "diffuse" in m_param:
+            material.diffuse_color.r, material.diffuse_color.g, \
+            material.diffuse_color.b, material.alpha = \
+                tuple(m_param["diffuse"])
+        if "shinness" in m_param:
+            material.specular_factor = float(m_param["shinness"])
+        if "specular" in m_param:
+            material.specular_color.r, material.specular_color.g, material.specular_color.b = \
+                tuple(m_param["specular"])
+        if "ambient" in m_param:
+            material.ambient_color.r, material.ambient_color.g, material.ambient_color.b = \
+                tuple(m_param["ambient"])
+        if ctx.mode == 'pmd':
+            # TODO: Edge Flag
+            if "toon" in m_param:
+                material.toon_index = m_param["toon"]
+        if ctx.mode == 'pmx':
+            if "edge_size" in m_param:
+                material.edge_size = float(m_param["edge_size"])
+            if "flag" in m_param:
+                material.flag = int(m_param["flag"])
+    
+    @classmethod
     def postprocess_material(cls, material, bl_material):
         ctx = cls.__context()
         
         material.specular_factor = cls.specular_factor_for_material(bl_material)
         
         if ctx.mode == 'pmx':
-            cls.postprocess_material_PMX(material, bl_material)
+            cls.__postprocess_material_PMX(material, bl_material)
         
+        if "*" in ctx.material_override:
+            m_param = ctx.material_override["*"]
+            cls.__apply_override(ctx, material, m_param)
+
         if bl_material.name in ctx.material_override:
             m_param = ctx.material_override[bl_material.name]
-            if "diffuse" in m_param:
-                material.diffuse_color.r, material.diffuse_color.g, \
-                material.diffuse_color.b, material.alpha = \
-                    tuple(m_param["diffuse"])
-            if "shinness" in m_param:
-                material.specular_factor = int(m_param["shinness"])
-            if "specular" in m_param:
-                material.specular_color.r, material.specular_color.g, material.specular_color.b = \
-                    tuple(m_param["specular"])
-            if "ambient" in m_param:
-                material.ambient_color.r, material.ambient_color.g, material.ambient_color.b = \
-                    tuple(m_param["ambient"])
-            # TODO: Edge Flag
-            if "toon" in m_param:
-                material.toon_index = m_param["toon"]
+            cls.__apply_override(ctx, material, m_param)
+
         # Record export information
         ctx.export_info.materials.append({ "name": bl_material.name, "index": ctx.material_count })
         ctx.material_count += 1
