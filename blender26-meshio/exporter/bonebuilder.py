@@ -169,6 +169,23 @@ class BoneBuilder(object):
             # translation lock
             if not b.lock_location[0]:
                 bone.canTranslate=True
+            
+            # heuristic method ?
+            if b.bone.use_connect:
+                bone.canTranslate = False
+            elif len([ _b for _b in pose.bones if not _b.parent ]) == 1:
+                # armature has 'root' bone.
+                if len(b.parent_recursive) < 2:
+                    bone.canTranslate = True # 'root' and 'center' must be translatable.
+                else:
+                    bone.canTranslate = False
+            else:
+                if len(b.parent_recursive) < 1:
+                    bone.canTranslate = True # 'center' must be translatable.
+                else:
+                    bone.canTranslate = False
+            if export_extender.BoneDB.get_by_name(b.name).is_ik:
+                bone.canTranslate = True # IK bone must be translatable.
 
             for c in b.constraints:
                 if c.name.startswith("_"):
