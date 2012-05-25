@@ -303,10 +303,9 @@ class MeshSetup:
                         break;
             def __call__(self, v_index):
                 v = self.mesh.vertices[v_index]
-                if any( ( g.group == self.vg_index for g in v.groups) ):
-                    return 1
-                else:
-                    return 0
+                # VertexGroupのウェイト取得（ウェイトが無い場合は0.0とする）
+                weight = next((g.weight for g in v.groups if g.group == self.vg_index), 0.0)
+                return weight # 1.0のウェイトで「エッジ無し」の意味
         return EdgeFlagTestFunc(obj)
     
     @classmethod

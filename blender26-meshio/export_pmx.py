@@ -45,7 +45,7 @@ def create_pmx(ex):
         common.Vector2(attribute.u, 1.0-attribute.v),
         get_deform(ex.skeleton.indexByName(b0), ex.skeleton.indexByName(b1), weight),
         # edge flag, 0: enable edge, 1: not edge
-        1.0 
+        1.0 - attribute.edge_flag
         )
         for pos, attribute, b0, b1, weight in ex.oneSkinMesh.vertexArray.zip()]
 

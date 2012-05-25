@@ -81,7 +81,7 @@ def write(ex, path):
         ex.skeleton.indexByName(b1),
         int(100*weight),
         # edge flag, 0: enable edge, 1: not edge
-        attribute.edge_flag
+        (1 if attribute.edge_flag > 0.4 else 0)
         )
         for pos, attribute, b0, b1, weight in ex.oneSkinMesh.vertexArray.zip()]
 
