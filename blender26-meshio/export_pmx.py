@@ -313,7 +313,7 @@ def create_pmx(ex):
 
     # rigid body
     boneNameMap={}
-    for i, b in enumerate(ex.skeleton.bones):
+    for i, b in enumerate(model.bones):
         boneNameMap[b.name]=i
     rigidNameMap={}
     for i, obj in enumerate(ex.oneSkinMesh.rigidbodies):
@@ -356,6 +356,21 @@ def create_pmx(ex):
                 mode=obj[bl.RIGID_PROCESS_TYPE]
                 )
         model.rigidbodies.append(rigidBody)
+
+    def rigid_constructor(name):
+        return pmx.RigidBody(name=name, english_name='',
+            collision_group=0, no_collision_group=0, bone_index=0,
+            shape_position=common.Vector3(0, 0, 0),
+            shape_rotation=common.Vector3(0, 0, 0),
+            shape_type=0, shape_size=common.Vector3(0, 0, 0),
+            mass=0, linear_damping=0, angular_damping=0,
+            restitution=0, friction=0, mode=0)
+    def bone_index_func(name):
+        return boneNameMap.get(name, -1)
+    for rigidBody in export_extender.RigidDefReader(bone_index_func, None).create_rigids(rigid_constructor):
+        rigidNameMap[rigidBody.name] = len(rigidNameMap)
+        model.rigidbodies.append(rigidBody)
+    print("RigidBody Total:", len(model.rigidbodies))
 
     # joint
     model.joints=[pmx.Joint(
@@ -400,6 +415,21 @@ def create_pmx(ex):
             obj[bl.CONSTRAINT_SPRING_ROT][2])
         )
         for obj in ex.oneSkinMesh.constraints]
+
+    def joint_constructor(name):
+        return pmx.Joint(name=name, english_name='', joint_type=0,
+            rigidbody_index_a=0, rigidbody_index_b=0,
+            position=common.Vector3(0,0,0),
+            rotation=common.Vector3(0,0,0),
+            translation_limit_min=common.Vector3(0,0,0),
+            translation_limit_max=common.Vector3(0,0,0),
+            rotation_limit_min=common.Vector3(0,0,0),
+            rotation_limit_max=common.Vector3(0,0,0),
+            spring_constant_translation=common.Vector3(0,0,0),
+            spring_constant_rotation=common.Vector3(0,0,0) )
+    for joint in export_extender.JointDefReader(rigidNameMap).create_joints(joint_constructor):
+        model.joints.append(joint)
+    print("Joint Total:", len(model.joints))
 
     return model
 

@@ -728,7 +728,7 @@ class RigidDefReader:
                 rigid.shape_position.x, rigid.shape_position.y, rigid.shape_position.z = \
                     (float(s) for s in lines[7].split(","))
                 # 剛体座標の補正（ボーン座標からの相対位置へ変換）
-                if self.boneIndex2Pos(rigid.bone_index):
+                if self.boneIndex2Pos(rigid.bone_index) and Context.current().mode != 'pmx':
                     _bone_pos = self.boneIndex2Pos(rigid.bone_index)
                     rigid.shape_position.x -= _bone_pos.x
                     rigid.shape_position.y -= _bone_pos.y
@@ -737,7 +737,8 @@ class RigidDefReader:
                 rigid.shape_rotation.x, rigid.shape_rotation.y, rigid.shape_rotation.z = \
                     (math.radians(float(s)) for s in lines[8].split(","))
                 # 物理演算パラメータ
-                rigid.mass, rigid.linear_damping, rigid.angular_damping, rigid.restitution, rigid.friction = \
+                _param = rigid.param if Context.current().mode == 'pmx' else rigid
+                _param.mass, _param.linear_damping, _param.angular_damping, _param.restitution, _param.friction = \
                     (float(s) for s in lines[9].split(","))
                 yield rigid
             except ValueError:
