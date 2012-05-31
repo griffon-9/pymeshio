@@ -232,6 +232,8 @@ class BoneBuilder(object):
                         self.boneByName(chain.name).ik_index = target.index
                         # next
                         chain=chain.parent
+                    
+                    export_extender.BoneSetup.postprocess_ik(target.name, target.ikSolver)
 
                 if bl.constraint.isCopyRotation(c):
                     # copy rotation

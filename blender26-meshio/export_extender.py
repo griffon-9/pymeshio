@@ -563,6 +563,19 @@ class BoneSetup:
                 else:
                     bone.ik_index = index_func(bone_param["ik"])
 
+    @classmethod
+    def postprocess_ik(cls, ik_name, solver):
+        # NOTE: 足のIKは標準モデル互換の設定値を固定で入れてしまう
+        if ik_name in { "leg IK_L", "leg IK_R" }:
+            solver.weight = 1.0
+        elif ik_name in { "toe IK_L", "toe IK_R" }:
+            solver.weight = 0.5
+        else:
+            return
+        # NOTE: PMXでの値はPMDでの値の4.0倍
+        if cls.__context().mode == "pmx":
+            solver.weight *= 4.0
+
 
 class MaterialSetup:
     MATERIAL_SHINNESS="material_shinness"
