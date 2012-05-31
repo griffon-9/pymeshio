@@ -201,7 +201,7 @@ class BoneBuilder(object):
                     target=self.boneByName(bl.constraint.ikTarget(c))
                     target.ikSolver=IKSolver(target.index, effector.index, 
                                 int(c.iterations * 0.1), 
-                                armature.bones[target.name].get(bl.IK_UNITRADIAN, 0.5)
+                                armature.bones[target.name].get(bl.IK_UNITRADIAN, 1.0)
                                 )
                     # ik chain
                     ####################

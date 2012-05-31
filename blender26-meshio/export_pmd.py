@@ -202,6 +202,7 @@ def write(ex, path):
         for i, chain in enumerate(ik.chain):
             solver.children.append(chain.index)
             model.bones[chain.index].type=pmd.Bone.IK_ROTATE_INFL
+            model.bones[chain.index].ik_index=ik.target_index
 
         solver.iterations=ik.iterations
         solver.weight=ik.weight
@@ -210,6 +211,9 @@ def write(ex, path):
     for i, b in enumerate(model.bones):
         if b.type==pmd.Bone.IK_TARGET:
             b.tail_index=0
+        if b.type==pmd.Bone.IK_ROTATE_INFL or b.type==pmd.Bone.IK_TARGET:
+            if model.bones[b.parent_index].type==pmd.Bone.IK_ROTATE_INFL:
+                b.ik_index=model.bones[b.parent_index].ik_index
         print(i, b.name.decode("cp932"), b.type)
 
     # 表情
@@ -272,15 +276,25 @@ def write(ex, path):
         try:
             if o.name.startswith(bl.TOON_TEXTURE_OBJECT):
                 toonMeshObject=o
+                break
         except:
             p(o.name)
     if toonMeshObject:
         toonMesh=bl.object.getData(toonMeshObject)
         toonMaterial=bl.mesh.getMaterial(toonMesh, 0)
+        material_names=[ name for name, dummy in ex.oneSkinMesh.vertexArray.each() ]
         for i in range(10):
             t=bl.material.getTexture(toonMaterial, i)
             if t:
                 model.toon_textures[i]=("%s" % t.name).encode('cp932')
+                # update toon_index
+                for material_name, material in zip(material_names, model.materials):
+                    try:
+                        m=bl.material.get(material_name)
+                        if any(t == slot.texture for slot in m.texture_slots if slot is not None):
+                            material.toon_index=i
+                    except KeyError as e:
+                        pass
             else:
                 model.toon_textures[i]=("toon%02d.bmp" % (i+1)).encode('cp932')
     else:
