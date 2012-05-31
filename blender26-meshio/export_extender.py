@@ -47,7 +47,7 @@ else:
     from . import bl
     from . import pymeshio
 
-PYMESHIO_BASE_VERSION = "2.6.3"
+PYMESHIO_BASE_VERSION = "2.6.4"
 
 # Check: Is meshutils available ?
 def external_ops_enabled():
@@ -652,19 +652,6 @@ class MaterialSetup:
         # Record export information
         ctx.export_info.materials.append({ "name": bl_material.name, "index": ctx.material_count })
         ctx.material_count += 1
-    
-    @classmethod
-    def toon_index_for_material(cls, m):
-        """PMD用にToonテクスチャのインデックスを取得する"""
-        toonMeshObject = get_toon_mesh_object()
-        if toonMeshObject is None:
-            return 0
-        toonMaterial = bl.mesh.getMaterial(bl.object.getData(toonMeshObject), 0)
-        for m_tex in ( slot.texture for slot in m.texture_slots if slot is not None ):
-            for i in range(10):
-                if toonMaterial.texture_slots[i].texture == m_tex:
-                    return i
-        return 0
     
     @classmethod
     def get_toon_texture_compat(cls, model, m):

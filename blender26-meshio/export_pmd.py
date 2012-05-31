@@ -114,7 +114,7 @@ def write(ex, path):
                 # ambient_color
                 common.RGB(m.mirror_color[0], m.mirror_color[1], m.mirror_color[2]),
                 # toon
-                export_extender.MaterialSetup.toon_index_for_material(m),
+                0,
                 # flag
                 1 if m.subsurface_scattering.use else 0,
                 # vertex_count

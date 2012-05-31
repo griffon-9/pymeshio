@@ -313,8 +313,6 @@ class BoneBuilder(object):
                 parent_b=self.bones[b.parent_index]
                 if parent_b.connected:
                     parent_b.tail_index=parent_b.connected.index
-                if export_extender.BoneSetup.is_overridden(b.name):
-                    continue
                 if b.constraint==CONSTRAINT_LIMIT_TRANSLATION:
                     # 移動不可ボーン
                     if b.isVisible and parent_b.isFixedAxis():
