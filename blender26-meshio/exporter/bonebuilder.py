@@ -52,7 +52,6 @@ class Bone(object):
         self.index=index
         self.name=name
         self.english_name=english_name
-        self.ik_index=0
         self.pos=pos
         self.tail=None
         self.parent_index=None
@@ -229,7 +228,6 @@ class BoneBuilder(object):
                         target.ikSolver.chain.append(IKChain(
                             self.boneByName(chain.name).index,
                             limit_anlge, limit_min, limit_max))
-                        self.boneByName(chain.name).ik_index = target.index
                         # next
                         chain=chain.parent
                     

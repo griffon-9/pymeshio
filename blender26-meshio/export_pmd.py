@@ -154,7 +154,7 @@ def write(ex, path):
 
         bone.parent_index=b.parent_index
         bone.tail_index=b.tail_index
-        bone.ik_index=b.ik_index
+        bone.ik_index=0
 
         if b.constraint==exporter.bonebuilder.CONSTRAINT_NONE:
             bone.type=pmd.Bone.ROTATE_MOVE
