@@ -95,6 +95,35 @@ def get_toon_material():
     return toon_obj.data.materials[0] if (toon_obj and toon_obj.data and len(toon_obj.data.materials) > 0) else None
 
 
+class BaseClass:
+    class Features:
+        __slots__ = [
+            'BTDA',
+            'BUILTIN_IK_PARAM',
+            'PYMESHIO_1X_COMPAT_BONES',
+        ]
+        def __init__(self):
+            for name in self.__slots__:
+                setattr(self, name, False)
+        
+        def show(self):
+            print("INFO: export_extender feature status >>>")
+            for name in self.__slots__:
+                val = getattr(self, name)
+                print("\t%s = %s" % (name, 'enabled' if val else 'disabled'))
+        
+        def load(self):
+            for fname in Config().lookup_ex("features", []):
+                setattr(self, fname, True)
+            return self
+        
+        def __get__(self, instance, owner):
+            ctx = Context.current()
+            if ctx.features is None:
+                ctx.features = BaseClass.Features().load()
+            return ctx.features
+    features = Features()
+
 class Math:
     @staticmethod
     def normalize(*values):
@@ -520,13 +549,12 @@ class BoneDB:
         db.__process_dependency()
 
 
-class BoneSetup:
+class BoneSetup(BaseClass):
     @classmethod
     def __context(cls):
         ctx = Context.current()
         if ctx.special_bones is None:
             ctx.special_bones = Config().lookup("bone.override", {})
-            ctx.bone_strategy = Config().lookup_ex("bone.strategy", None)
         return ctx
     
     @classmethod
@@ -547,7 +575,7 @@ class BoneSetup:
     @classmethod
     def postprocess_bone(cls, bone_name, bone, index_func):
         ctx = cls.__context()
-        if ctx.bone_strategy == 'PYMESHIO_1X_COMPAT':
+        if cls.features.PYMESHIO_1X_COMPAT_BONES:
             cls.__handle_bone_compat(bone_name, bone, index_func)
         if bone_name in ctx.special_bones:
             bone_param = ctx.special_bones[bone_name]
@@ -564,17 +592,24 @@ class BoneSetup:
                     bone.ik_index = index_func(bone_param["ik"])
 
     @classmethod
-    def postprocess_ik(cls, ik_name, solver):
-        # NOTE: 足のIKは標準モデル互換の設定値を固定で入れてしまう
+    def __apply_builtin_ik_param(cls, ik_name, solver):
         if ik_name in { "leg IK_L", "leg IK_R" }:
             solver.weight = 1.0
+            solver.iterations = 50
         elif ik_name in { "toe IK_L", "toe IK_R" }:
             solver.weight = 0.5
+            solver.iterations = 10
         else:
             return
         # NOTE: PMXでの値はPMDでの値の4.0倍
         if cls.__context().mode == "pmx":
             solver.weight *= 4.0
+
+    @classmethod
+    def postprocess_ik(cls, ik_name, solver):
+        if cls.features.BUILTIN_IK_PARAM:
+            # NOTE: 足のIKに標準モデル互換の設定値を固定で入れてしまう
+            cls.__apply_builtin_ik_param(ik_name, solver)
 
 
 class MaterialSetup:
@@ -880,9 +915,10 @@ class ModelSetup:
             val = cls.__get_str(conf, key, multiline)
             setattr(model, attr_name, str_func(val))
 
-class PmdExporterSetup:
+class PmdExporterSetup(BaseClass):
     @classmethod
     def setupModelNames(cls, model):
+        cls.features.show()
         conf = Config().get("pmd", None)
         if conf is None:
             conf = Config().get("model", {})
@@ -908,9 +944,10 @@ class PmdExporterSetup:
         bpy.context.scene["PMD_EXPORT_INFO"] = text.name
         text.from_string(Context.current().export_info.as_string())
 
-class PmxExporterSetup:
+class PmxExporterSetup(BaseClass):
     @classmethod
     def setupModelNames(cls, model):
+        cls.features.show()
         conf = Config().get("pmx", None)
         if conf is None:
             conf = Config().get("model", {})
@@ -921,5 +958,4 @@ class PmxExporterSetup:
 
 # DEBUG
 print("INFO: export_extender loaded.")
-
 
