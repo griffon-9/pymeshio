@@ -361,6 +361,8 @@ class MeshSetup:
             return
         if name_R in key_blocks:
             return
+        bpy.ops.object.select_all(action = 'DESELECT')
+        obj.select = True
         bpy.context.scene.objects.active = obj
         bpy.ops.object.split_shapekey_lr(target_name=name_base, left_name=name_L, right_name=name_R)
     
@@ -390,7 +392,7 @@ class MeshSetup:
         bpy.ops.object.select_all(action = 'DESELECT')
         obj.select = True
         bpy.context.scene.objects.active = obj
-        bpy.ops.object.apply_deform_special()
+        bpy.ops.object.apply_deform_for_export()
         output = bpy.context.active_object
         return output.data, output
 

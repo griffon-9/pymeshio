@@ -363,7 +363,7 @@ class OneSkinMesh(object):
                 export_extender.MeshSetup.set_current_mesh_obj(copyObj)
                 
                 # Auto-complement Asymmetry ShapeKeys
-                export_extender.MeshSetup.autocomplete_shapekeys(obj)
+                export_extender.MeshSetup.autocomplete_shapekeys(copyObj)
                 
                 # apply modifier
                 for m in [m for m in copyObj.modifiers]:
