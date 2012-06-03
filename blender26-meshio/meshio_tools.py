@@ -361,6 +361,96 @@ class PmdMaterialFeedbackCmdOperator(bpy.types.Operator):
     def add_menu_func(cls, _self, context):
         _self.layout.operator(cls.bl_idname)
 
+
+class ApplyDeformForExportOperator(bpy.types.Operator):
+    '''Apply Modifier & ShapeKey Deformation to Mesh Object'''
+    bl_idname = "object.apply_deform_for_export"
+    bl_label = "Apply Deform"
+
+    @classmethod
+    def poll(cls, context):
+        if context.active_object is not None:
+            if context.active_object.mode == 'OBJECT':
+                return context.active_object.type == 'MESH'
+        return False
+
+    def __get_other_shapekeys(self, mesh):
+        if mesh.shape_keys == None:
+            return [ ]
+        return [ s.name for s in mesh.shape_keys.key_blocks if s != mesh.shape_keys.reference_key ]
+
+    def __get_shapekey_basis(self, mesh):
+        if mesh.shape_keys == None:
+            return None
+        return mesh.shape_keys.reference_key.name
+    
+    def __activate_shapekey(self, obj, key_name):
+        obj.show_only_shape_key = True
+        obj.active_shape_key_index = obj.data.shape_keys.key_blocks.find(key_name)
+    
+    def __create_base_obj(self, scene, obj, obj_name, key_name=None):
+        if key_name:
+            self.__activate_shapekey(obj, key_name)
+        new_mesh = obj.to_mesh(scene, apply_modifiers=True, settings='PREVIEW')
+        new_obj = bpy.data.objects.new(obj_name, new_mesh)
+        if key_name:
+            new_obj.shape_key_add(name=key_name, from_mix=True)
+        # Copy VertexGroup settings
+        for vg in obj.vertex_groups:
+            new_obj.vertex_groups.new(vg.name)
+        # Copy parenting setting
+        new_obj.parent = obj.parent
+        new_obj.matrix_parent_inverse = obj.matrix_parent_inverse
+        # Copy transformation settings
+        new_obj.location            = obj.location
+        new_obj.rotation_axis_angle = obj.rotation_axis_angle
+        new_obj.rotation_euler      = obj.rotation_euler
+        new_obj.rotation_mode       = obj.rotation_mode
+        #new_obj.rotation_quaternion = obj.rotation_quaternion
+        new_obj.scale               = obj.scale
+        return new_obj
+    
+    def __join_shapekey(self, scene, dst_obj, src_obj, src_key_name):
+        self.__activate_shapekey(src_obj, src_key_name)
+        mesh = src_obj.to_mesh(scene, apply_modifiers=True, settings='PREVIEW')
+        try:
+            new_key = dst_obj.shape_key_add(name=src_key_name, from_mix=False)
+            for dv, sv in zip(new_key.data, mesh.vertices):
+                dv.co = sv.co
+        finally:
+            bpy.data.meshes.remove(mesh)
+    
+    def do_apply(self, scene, obj, obj_name):
+        basis_name  = self.__get_shapekey_basis(obj.data)
+        shape_names = self.__get_other_shapekeys(obj.data)
+        
+        new_obj = self.__create_base_obj(scene, obj, obj_name, basis_name)
+        for name in shape_names:
+            self.__join_shapekey(scene, new_obj, obj, name)
+        
+        scene.objects.link(new_obj)
+        bpy.context.scene.update()
+        return new_obj
+
+    def execute(self, context):
+        obj = context.active_object
+        scene = context.scene
+        # Duplicate input object
+        bpy.ops.object.duplicate()
+        copied_obj = bpy.context.active_object
+        try:
+            # Apply deformation
+            new_obj = self.do_apply(scene, copied_obj, obj.name)
+        finally:
+            scene.objects.unlink(copied_obj)
+            bpy.data.objects.remove(copied_obj)
+        # Activate new object
+        bpy.ops.object.select_all(action='DESELECT')
+        new_obj.select = True
+        scene.objects.active = new_obj
+        return {'FINISHED'}
+
+
 class SCENE_PT_meshio(bpy.types.Panel):
     bl_label = "MeshIO"
     bl_space_type = "PROPERTIES"
