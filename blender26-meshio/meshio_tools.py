@@ -451,6 +451,52 @@ class ApplyDeformForExportOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SplitShapeKeyLROperator(bpy.types.Operator):
+    '''Split Shape Key L/R'''
+    bl_idname = "object.split_shapekey_lr_for_export"
+    bl_label = "Split Shape Key L/R"
+    bl_options = { 'REGISTER', 'UNDO' }
+    
+    target_name = bpy.props.StringProperty(name="Target ShapeKey Name", default="Basis")
+    left_name   = bpy.props.StringProperty(name="Left ShapeKey Name", default="")
+    right_name  = bpy.props.StringProperty(name="Right ShapeKey Name", default="")
+    
+    @classmethod
+    def poll(cls, context):
+        active = context.active_object
+        return active != None and active.type == 'MESH' and active.data.shape_keys != None
+
+    @staticmethod
+    def create_mixed_shapekey(context, obj, keyname0, keyname1, newname, mix_func):
+        mesh = obj.data
+        key0 = mesh.shape_keys.key_blocks[keyname0]
+        key1 = mesh.shape_keys.key_blocks[keyname1]
+        if mix_func == None:
+            return None
+        resultKey = obj.shape_key_add(name=newname, from_mix=False)
+        for p, p0, p1 in zip(resultKey.data, key0.data, key1.data):
+            p.co = mix_func(p0.co, p1.co)
+        return resultKey
+
+    def execute(self, context):
+        obj = context.active_object
+        key_blocks = obj.data.shape_keys.key_blocks
+        mode_saved = bpy.context.object.mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+        
+        _left_func = lambda v0, v1: v1 if v1.x > 0.0 else v0
+        _right_func = lambda v0, v1: v1 if v1.x < 0.0 else v0
+        
+        if self.target_name in key_blocks:
+            if len(self.left_name) > 0 and (not self.left_name in key_blocks):
+                self.create_mixed_shapekey(context, obj, "Basis", self.target_name, self.left_name, _left_func)
+            if len(self.right_name) > 0 and (not self.right_name in key_blocks):
+                self.create_mixed_shapekey(context, obj, "Basis", self.target_name, self.right_name, _right_func)
+        
+        bpy.ops.object.mode_set(mode=mode_saved)
+        return {'FINISHED'}
+
+
 class SCENE_PT_meshio(bpy.types.Panel):
     bl_label = "MeshIO"
     bl_space_type = "PROPERTIES"
