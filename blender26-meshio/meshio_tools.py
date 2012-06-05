@@ -436,6 +436,9 @@ class ApplyDeformForExportOperator(bpy.types.Operator):
         obj = context.active_object
         scene = context.scene
         # Duplicate input object
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select = True
+        scene.objects.active = obj
         bpy.ops.object.duplicate()
         copied_obj = bpy.context.active_object
         try:
