@@ -101,6 +101,8 @@ class BaseClass:
             'BTDA',
             'BUILTIN_IK_PARAM',
             'PYMESHIO_1X_COMPAT_BONES',
+            'APPLY_MODIFIER',
+            'AUTO_ASYM_SHAPEKEYS',
         ]
         def __init__(self):
             for name in self.__slots__:
@@ -314,7 +316,7 @@ class EnglishMap:
                     _maps[name_type], namepair, default)
 
 
-class MeshSetup:
+class MeshSetup(BaseClass):
     @classmethod
     def __context(cls):
         ctx = Context.current()
@@ -352,8 +354,6 @@ class MeshSetup:
     @classmethod
     def __complete_asymmetry_shapekeys(cls, obj, name_base, name_L, name_R):
         """ShapeKeyを左右分割して新しいShapeKeyを作成する"""
-        if not external_ops_enabled():
-            return
         key_blocks = obj.data.shape_keys.key_blocks
         if not name_base in key_blocks:
             return
@@ -369,6 +369,8 @@ class MeshSetup:
     @classmethod
     def autocomplete_shapekeys(cls, obj):
         if not obj.data.shape_keys:
+            return
+        if not cls.features.AUTO_ASYM_SHAPEKEYS:
             return
         cls.__complete_asymmetry_shapekeys(obj, "blink", "wink2_R", "wink2")
         cls.__complete_asymmetry_shapekeys(obj, "smile", "wink_R", "wink")
@@ -387,7 +389,7 @@ class MeshSetup:
     @classmethod
     def duplicate_obj_for_export(cls, obj):
         """MeshオブジェクトをShapeKey有効な状態でModifierを適用しつつコピーする"""
-        if not external_ops_enabled():
+        if not cls.features.APPLY_MODIFIER:
             return bl.object.duplicate(obj)
         bpy.ops.object.select_all(action = 'DESELECT')
         obj.select = True
