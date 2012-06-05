@@ -78,7 +78,8 @@ class Bone(object):
         return self.constraint==CONSTRAINT_LIMIT_ROTATION
 
     def canManipulate(self):
-        return True
+        return self.isVisible # TODO:
+        #return True
 
     def hasValidTailIndex(self):
         return self.tail_index and self.tail_index!=-1 and self.tail_index!=0
