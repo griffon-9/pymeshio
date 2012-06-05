@@ -49,9 +49,6 @@ else:
 
 PYMESHIO_BASE_VERSION = "2.6.4"
 
-# Check: Is meshutils available ?
-def external_ops_enabled():
-    return "meshutils_gr" in sys.modules
 
 def open_file_safe(filename):
     file = None
@@ -82,9 +79,6 @@ def truncate_str_in_bytes(input_str, size_in_bytes, encoding="cp932"):
     while len(result.encode(encoding)) >= size_in_bytes:
         result = result[:-1]
     return result
-
-
-
 
 
 def get_toon_mesh_object():
