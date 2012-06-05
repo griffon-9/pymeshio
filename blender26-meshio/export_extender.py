@@ -364,7 +364,7 @@ class MeshSetup:
         bpy.ops.object.select_all(action = 'DESELECT')
         obj.select = True
         bpy.context.scene.objects.active = obj
-        bpy.ops.object.split_shapekey_lr(target_name=name_base, left_name=name_L, right_name=name_R)
+        bpy.ops.object.split_shapekey_lr_for_export(target_name=name_base, left_name=name_L, right_name=name_R)
     
     @classmethod
     def autocomplete_shapekeys(cls, obj):
