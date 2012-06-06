@@ -251,7 +251,7 @@ def create_pmx(ex):
             model.indices.append(indices[i+1])
             model.indices.append(indices[i])
 
-    def _to_abs_index(rel_index):
+    def get_vertex_index(rel_index):
         return ex.oneSkinMesh.morphList[0].offsets[rel_index][0]
 
     # 表情
@@ -277,7 +277,7 @@ def create_pmx(ex):
                 morph_type=1,
                 )
         morph.offsets=[pmx.VertexMorphOffset(
-            _to_abs_index(index),
+            get_vertex_index(index),
             common.Vector3(offset[0], offset[2], offset[1])
             )
             for index, offset in m.offsets]
