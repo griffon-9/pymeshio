@@ -361,6 +361,7 @@ class OneSkinMesh(object):
                 #copyMesh.transform(obj.matrix_world)
                 export_extender.MeshSetup.transform_mesh(copyMesh, obj.matrix_world)
                 export_extender.MeshSetup.set_current_mesh_obj(copyObj)
+                copyMesh.calc_normals()
                 
                 # Auto-complement Asymmetry ShapeKeys
                 export_extender.MeshSetup.autocomplete_shapekeys(copyObj)
