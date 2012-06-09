@@ -14,7 +14,7 @@ def near(x, y, EPSILON=1e-5):
     return d>=-EPSILON and d<=EPSILON
 
 
-def create_pmx(ex):
+def create_pmx(ex, enableBdef4=True):
     """
     PMX 出力
     """
@@ -27,6 +27,46 @@ def create_pmx(ex):
     model.english_comment=o.get(bl.MMD_ENGLISH_COMMENT, 'blender export commen\n')
 
     export_extender.PmxExporterSetup.setupModelNames(model)
+
+    class DeformBuilder:
+        def __init__(self, skeleton):
+            self.skeleton=skeleton
+            self.bone_names={ b.name for b in skeleton.bones }
+            self.count_bdef1=0
+            self.count_bdef2=0
+            self.count_bdef4=0
+            self.count_error=0
+        
+        def __filter(self, name, weight):
+            return name in self.bone_names
+        
+        def __call__(self, ext_weight):
+            weights=[ (self.skeleton.indexByName(w[0]), w[1]) \
+                for w in ext_weight.get_normalized(4, self.__filter) ]
+            if len(weights)==0:
+                self.count_error+=1
+                return pmx.Bdef1(0) # Recovery
+            elif len(weights)==1:
+                self.count_bdef1+=1
+                return pmx.Bdef1(weights[0][0])
+            elif len(weights)==2:
+                self.count_bdef2+=1
+                return pmx.Bdef2(
+                    weights[0][0], weights[1][0],
+                    weights[0][1])
+            else:
+                if len(weights)==3:
+                    weights.append( (0, 0.0) ) # Dummy Data
+                self.count_bdef4+=1
+                return pmx.Bdef4(
+                    weights[0][0], weights[1][0], weights[2][0], weights[3][0],
+                    weights[0][1], weights[1][1], weights[2][1], weights[3][1])
+        
+        def show(self):
+            print("BDEF Statistics >>>")
+            print("\tBDEF1: %d BDEF2: %d BDEF4: %d ERROR: %d" % \
+                (self.count_bdef1, self.count_bdef2, self.count_bdef4, self.count_error))
+    deform_builder=DeformBuilder(ex.skeleton)
 
     def get_deform(b0, b1, weight):
         if b0==-1:
@@ -43,11 +83,15 @@ def create_pmx(ex):
         common.Vector3(attribute.nx, attribute.nz, attribute.ny),
         # reverse vertical
         common.Vector2(attribute.u, 1.0-attribute.v),
+        deform_builder(ext_weight) if enableBdef4 else \
         get_deform(ex.skeleton.indexByName(b0), ex.skeleton.indexByName(b1), weight),
         # edge flag, 0: enable edge, 1: not edge
         1.0 - attribute.edge_flag
         )
-        for pos, attribute, b0, b1, weight in ex.oneSkinMesh.vertexArray.zip()]
+        for pos, attribute, b0, b1, weight, ext_weight in ex.oneSkinMesh.vertexArray.zip2()]
+
+    if enableBdef4:
+        deform_builder.show()
 
     boneMap=dict([(b.name, i) for i, b in enumerate(ex.skeleton.bones)])
 
