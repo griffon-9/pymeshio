@@ -47,7 +47,7 @@ else:
     from . import bl
     from . import pymeshio
 
-PYMESHIO_BASE_VERSION = "2.6.4"
+PYMESHIO_BASE_VERSION = "2.6.5"
 
 
 def open_file_safe(filename):
@@ -368,17 +368,6 @@ class MeshSetup(BaseClass):
             return
         cls.__complete_asymmetry_shapekeys(obj, "blink", "wink2_R", "wink2")
         cls.__complete_asymmetry_shapekeys(obj, "smile", "wink_R", "wink")
-    
-    @classmethod
-    def transform_mesh(cls, mesh, matrix):
-        """エクスポート用にMeshの頂点と全ShapeKeyを座標変換する"""
-        mesh.transform(matrix)
-        if not mesh.shape_keys:
-            return
-        # NOTE: MeshのtransformだけではShapeKeyのShapeKeyPointは座標変換されない？
-        for key in mesh.shape_keys.key_blocks:
-            for point in key.data:
-                point.co = matrix * point.co
     
     @classmethod
     def duplicate_obj_for_export(cls, obj):
