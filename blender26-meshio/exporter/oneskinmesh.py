@@ -85,7 +85,6 @@ class OneSkinMesh(object):
         if not obj.is_visible(bpy.context.scene):
             return
         self.__mesh(obj)
-        #self.__skin(obj)
         self.__rigidbody(obj)
         self.__constraint(obj)
 
@@ -358,10 +357,14 @@ class OneSkinMesh(object):
         try:
             if len(copyMesh.vertices)>0:
                 # apply transform
-                #copyMesh.transform(obj.matrix_world)
-                export_extender.MeshSetup.transform_mesh(copyMesh, obj.matrix_world)
-                export_extender.MeshSetup.set_current_mesh_obj(copyObj)
+                copyMesh.transform(obj.matrix_world)
+                if bl.object.hasShapeKey(copyObj):
+                    matrix=obj.matrix_world
+                    for key in copyMesh.shape_keys.key_blocks:
+                        for point in key.data:
+                            point.co=matrix*point.co
                 copyMesh.calc_normals()
+                export_extender.MeshSetup.set_current_mesh_obj(copyObj)
                 
                 # Auto-complement Asymmetry ShapeKeys
                 export_extender.MeshSetup.autocomplete_shapekeys(copyObj)
@@ -409,7 +412,7 @@ class OneSkinMesh(object):
                 baseMorph=self.__getOrCreateMorph('base', 0)
                 basis=b
 
-                relativeIndex = len(baseMorph.offsets)
+                relativeIndex=len(baseMorph.offsets)
                 for index in vg:
                     v=bl.shapekey.getByIndex(b, index)
                     pos=[v[0], v[1], v[2]]
