@@ -580,10 +580,10 @@ class BoneSetup(BaseClass):
 
     @classmethod
     def __apply_builtin_ik_param(cls, ik_name, solver):
-        if ik_name in { "leg IK_L", "leg IK_R" }:
+        if ik_name in { "leg IK_L", "leg IK_R", "左足ＩＫ", "右足ＩＫ" }:
             solver.weight = 1.0
             solver.iterations = 50
-        elif ik_name in { "toe IK_L", "toe IK_R" }:
+        elif ik_name in { "toe IK_L", "toe IK_R", "左つま先ＩＫ", "右つま先ＩＫ" }:
             solver.weight = 0.5
             solver.iterations = 10
         else:
