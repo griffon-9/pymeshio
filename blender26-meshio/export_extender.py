@@ -381,7 +381,7 @@ class MeshSetup(BaseClass):
         output = bpy.context.active_object
         return output.data, output
 
-class BoneDB:
+class BoneDB(BaseClass):
     class BoneData:
         """Boneの情報を保持するクラス（Blender側への参照を保持するのは良くない）"""
         def __init__(self, name):
@@ -532,8 +532,9 @@ class BoneDB:
         db.__scan_pose(obj, pose)
         # Armature Layerの解析
         db.__scan_layers(obj.data)
-        # 変形依存関係の計算
-        db.__process_dependency()
+        if cls.features.BTDA:
+            # 変形依存関係の計算
+            db.__process_dependency()
 
 
 class BoneSetup(BaseClass):
@@ -597,6 +598,12 @@ class BoneSetup(BaseClass):
         if cls.features.BUILTIN_IK_PARAM:
             # NOTE: 足のIKに標準モデル互換の設定値を固定で入れてしまう
             cls.__apply_builtin_ik_param(ik_name, solver)
+
+    @classmethod
+    def bone_layer(cls, bone_name, default_layer=0):
+        if not cls.features.BTDA:
+            return default_layer
+        return BoneDB.get_by_name(bone_name).level
 
 
 class MaterialSetup:

@@ -160,7 +160,7 @@ def create_pmx(ex, enableBdef4=True):
                         for c in b.ikSolver.chain
                         ])
 
-        bone.layer = export_extender.BoneDB.get_by_name(namepair.bl_name).level
+        bone.layer = export_extender.BoneSetup.bone_layer(namepair.bl_name, bone.layer)
 
         return bone
 
