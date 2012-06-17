@@ -178,6 +178,10 @@ class Context:
     @classmethod
     def current(cls):
         return cls.__current
+    
+    @classmethod
+    def current_mode(cls):
+        return cls.current().mode
 
 class EnglishMap:
     englishmap = None
@@ -392,7 +396,7 @@ class BoneDB(BaseClass):
             self.use_connect = True
             self.use_deform = True
             self.layer_visible = True # Layer which this bone exists in is visible.
-            self.is_ik = False
+            self.is_ik = False # marked as IK bone in PMX/PMD
             self.is_ik_target = False # IK接続先
             self.dependency = [] # 先に変形が行われる必要のあるBoneのBoneData
         
@@ -405,10 +409,13 @@ class BoneDB(BaseClass):
         self.name_list = []
         self.bone_map  = {}
     
-    def get_data(self, name):
+    def init_data(self, name):
         if not name in self.bone_map:
             self.bone_map[name] = self.BoneData(name)
             self.name_list.append(name)
+        return self.bone_map[name]
+    
+    def get_data(self, name):
         return self.bone_map[name]
     
     def __scan_bones(self, parent, bones):
@@ -419,7 +426,7 @@ class BoneDB(BaseClass):
             parent_data = None
         # Recursive Scanning
         for b in bones:
-            data = self.get_data(b.name)
+            data = self.init_data(b.name)
             data.parent = parent_data
             if parent:
                 data.add_dependency(parent_data)
@@ -451,7 +458,6 @@ class BoneDB(BaseClass):
                     depend = self.bone_map[c.subtarget]
                     data.add_dependency(depend)
                 # TODO: 移動付与を実装していない
-        # TODO: exporterで特殊ハンドリングされるBoneは？
         # TODO: PMD出力時に設定ファイルでoverrideしている場合は？
 
     def __scan_layers(self, armature):
@@ -487,6 +493,15 @@ class BoneDB(BaseClass):
                             # 事前にボーンの親子関係を考慮してIndexを仮決定している
                             # ことが大前提
                             data.level = max_data.level
+                            # NOTE: Workaround for PMD Editor 0.1.3.8 (PMD Format Only)
+                            # PMDファイルを読み込んだときにボーン構造が壊れる問題対策
+                            # 「両足のIKボーンのIndexが両つま先IKボーンよりも小さい」
+                            # という条件を満たしていなければ、PMD Editorが読み込み時に
+                            # ボーン構造を破壊してしまう
+                            # 回避策としてIKの変形階層を常に一段深くしておき、
+                            # さらに変形階層に基づいてボーンをソートする
+                            if data.is_ik and Context.current_mode() == 'pmd':
+                                data.level = max_data.level + 1
                         else:
                             # 依存関係がIndex順を逆転するなどの場合は変形階層を加算
                             data.level = max_data.level + 1
@@ -499,6 +514,9 @@ class BoneDB(BaseClass):
                 # NOTE: ボーンの依存関係がループしている場合は何回ループしても完了しない
                 print("  incomplete error!!")
 
+    def __index_fixup_for_pmd(self):
+        # PMX用に計算した変形階層を使ってボーンのIndexを変更する
+        self.name_list.sort(key=lambda n: self.get_data(n).level)
     
     @classmethod
     def current(cls):
@@ -535,6 +553,9 @@ class BoneDB(BaseClass):
         if cls.features.BTDA:
             # 変形依存関係の計算
             db.__process_dependency()
+        # PMD出力時のPMDエディタに対する対策
+        if Context.current().mode == 'pmd':
+            db.__index_fixup_for_pmd()
 
 
 class BoneSetup(BaseClass):
