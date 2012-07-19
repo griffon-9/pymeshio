@@ -103,9 +103,12 @@ class BLTextureManager:
         tex.image = cls.get_image_dummy()
         return tex
 
-FIND_SLOT_DEFAULT = lambda i, slot, enabled: slot.texture_coords == 'UV' and enabled
-FIND_SLOT_SPHERE = lambda i, slot, enabled: slot.mapping == 'SPHERE' and enabled
-FIND_SLOT_TOON = lambda i, slot, enabled: not enabled
+def __tex_type(slot):
+    return slot.texture.get(bl.TEXTURE_TYPE, 'NORMAL') if slot.texture else None
+
+FIND_SLOT_DEFAULT = lambda i, slot, enabled: enabled and (slot.texture_coords == 'UV' or __tex_type(slot) == 'NORMAL')
+FIND_SLOT_SPHERE = lambda i, slot, enabled: enabled and (slot.mapping == 'SPHERE' or __tex_type(slot) in { 'SPA', 'SPH' })
+FIND_SLOT_TOON = lambda i, slot, enabled: (not enabled) or __tex_type(slot) == 'TOON'
 
 class BLMaterial:
     """Utility Wrapper Class for Blender Material"""
@@ -147,10 +150,15 @@ class BLMaterial:
                 slot.mapping = 'FLAT'
                 slot.blend_type = 'MULTIPLY'
                 slot.use_map_alpha = True
-            elif tex_type == 'SPHERE':
+                if tex_type == 'TOON':
+                    texture[bl.TEXTURE_TYPE] = 'TOON'
+                else:
+                    texture[bl.TEXTURE_TYPE] = 'NORMAL'
+            elif tex_type == 'SPA' or tex_type == 'SPH':
                 slot.texture_coords = 'NORMAL'
                 slot.mapping = 'SPHERE'
-                slot.blend_type = 'ADD' if BLTextureManager.texture_is_spa(texture) else 'MULTIPLY'
+                slot.blend_type = 'ADD' if tex_type == 'SPA' else 'MULTIPLY'
+                texture[bl.TEXTURE_TYPE] = tex_type
     
     def get_texture(self, slot_index):
         return self._m.texture_slots[slot_index].texture
@@ -208,7 +216,10 @@ def _pmd_material_feedback_texture(bl_material, toon_index, tex_path="", sphere_
         if BLTextureManager.texture_is_changed(m.get_texture(slot_index), sphere_path):
             # Create new Texture
             tex = BLTextureManager.create_texture_default(sphere_path)
-            m.set_texture(slot_index, tex, 'SPHERE')
+            if BLTextureManager.texture_is_spa(tex):
+                m.set_texture(slot_index, tex, 'SPA')
+            else:
+                m.set_texture(slot_index, tex, 'SPH')
     elif slot_index >= 0: # PMD Material does not have a sphere mapping.
         # Remove old TextureSlot.
         m.clear_texture_slot(slot_index)
@@ -225,19 +236,39 @@ def _pmd_material_feedback_texture(bl_material, toon_index, tex_path="", sphere_
         m.set_texture(slot_index, toon_m.get_texture(toon_index), 'TOON')
     return
 
-def _pmd_material_feedback(pmd_material, bl_material, basedir):
+def _common_texture_feedback(bl_material, tex_path=None, tex_type='DEFAULT', slot_func=FIND_SLOT_DEFAULT):
+    # NOTE: UV Mapping Settings are not feedbacked.
+    m = BLMaterial(bl_material)
+    # Find TextureSlot
+    slot_index = m.find_texture_slot(slot_func)
+    if tex_path and (len(tex_path) > 0): # PMX/PMD Material has a texture.
+        # Create new TextureSlot IF it does not exist.
+        slot_index = m.ensure_texture_slot_exists(slot_index, True)
+        # Set new Texture to TextureSlot.
+        if BLTextureManager.texture_is_changed(m.get_texture(slot_index), tex_path):
+            # Create new Texture
+            tex = BLTextureManager.create_texture_default(tex_path)
+            m.set_texture(slot_index, tex, tex_type)
+    elif slot_index >= 0: # PMX/PMD Material does not have a texture.
+        # Remove old TextureSlot.
+        m.clear_texture_slot(slot_index)
+
+def _common_material_feedback(model_material, bl_material):
     def _get_RGB(color):
         return [ color.r, color.g, color.b ]
-    bl_material.diffuse_shader = "FRESNEL"
-    bl_material.diffuse_color = _get_RGB(pmd_material.diffuse_color)
-    bl_material.alpha = pmd_material.alpha
-    bl_material.specular_shader = "TOON"
-    bl_material.specular_color = _get_RGB(pmd_material.specular_color)
-    bl_material.specular_toon_size = int(pmd_material.specular_factor)
-    bl_material["material_shinness"] = int(pmd_material.specular_factor)
-    bl_material.mirror_color = _get_RGB(pmd_material.ambient_color)
-    bl_material.subsurface_scattering.use = (pmd_material.edge_flag == 1)
+    bl_material.diffuse_shader     = "FRESNEL"
+    bl_material.diffuse_color      = _get_RGB(model_material.diffuse_color)
+    bl_material.alpha              = model_material.alpha
+    bl_material.specular_shader    = "TOON"
+    bl_material.specular_color     = _get_RGB(model_material.specular_color)
+    bl_material.specular_toon_size = model_material.specular_factor * 0.1
+    bl_material["material_shinness"] = model_material.specular_factor
+    bl_material.mirror_color       = _get_RGB(model_material.ambient_color)
     bl_material.use_transparency = True
+
+def _pmd_material_feedback(pmd_material, bl_material, basedir):
+    _common_material_feedback(pmd_material, bl_material)
+    bl_material.subsurface_scattering.use = (model_material.edge_flag != 0)
     
     def _resolve_path(basedir, path):
         return "" if len(path) == 0 else os.path.join(basedir, path)
@@ -252,18 +283,40 @@ def _pmd_material_feedback(pmd_material, bl_material, basedir):
     else:
         _pmd_material_feedback_texture(bl_material, pmd_material.toon_index)
 
-def _pmd_material_feedback_by_name(pmd_model, mat_index, bl_mat_name, basedir):
-    if (0 <= mat_index) and (mat_index < len(pmd_model.materials)):
-        pmd_mat = pmd_model.materials[mat_index]
-    else: # Index out of range
-        return
-    # Prepare Blender Material (create new one when the material does't exists.)
-    if bl_mat_name in bpy.data.materials:
-        bl_mat = bpy.data.materials[bl_mat_name]
+def _pmx_material_feedback(model, pmx_material, bl_material, basedir):
+    from pymeshio import pmx
+    _common_material_feedback(pmx_material, bl_material)
+    bl_material.subsurface_scattering.use = pmx_material.hasFlag(pmx.MATERIALFLAG_EDGE)
+    
+    _CUSTOM_PROPS = {
+        bl.MATERIALFLAG_BOTHFACE: pmx.MATERIALFLAG_BOTHFACE,
+        bl.MATERIALFLAG_GROUNDSHADOW: pmx.MATERIALFLAG_GROUNDSHADOW,
+        bl.MATERIALFLAG_SELFSHADOWMAP: pmx.MATERIALFLAG_SELFSHADOWMAP,
+        bl.MATERIALFLAG_SELFSHADOW: pmx.MATERIALFLAG_SELFSHADOW,
+        bl.MATERIALFLAG_EDGE: pmx.MATERIALFLAG_EDGE,
+    }
+    for key, flag in _CUSTOM_PROPS.items():
+        bl_material[key] = pmx_material.hasFlag(flag)
+    
+    def to_texpath(index):
+        return None if index < 0 else model.textures[index]
+    ### Texture ###
+    _common_texture_feedback(bl_material, to_texpath(pmx_material.texture_index),
+                            'DEFAULT', FIND_SLOT_DEFAULT)
+    ### Sphere Mapping ###
+    def get_sphere_mode(m):
+        return 'SPH' if m.sphere_mode == pmx.MATERIALSPHERE_SPH else 'SPA'
+    _common_texture_feedback(bl_material, to_texpath(pmx_material.sphere_texture_index),
+                            get_sphere_mode(pmx_material), FIND_SLOT_SPHERE)
+    ### ToonTexture ###
+    toon_path = to_texpath(pmx_material.toon_texture_index)
+    if (pmx_material.toon_sharing_flag == 1):
+        toon_path = None
+        bl_material[bl.MATERIAL_SHAREDTOON] = pmx_material.toon_texture_index
     else:
-        bl_mat = bpy.data.materials.new(bl_mat_name)
-    # Initialize material parameters
-    _pmd_material_feedback(pmd_mat, bl_mat, basedir)
+        if bl.MATERIAL_SHAREDTOON in bl_material:
+            del bl_material[bl.MATERIAL_SHAREDTOON]
+    _common_texture_feedback(bl_material, toon_path, 'TOON', FIND_SLOT_TOON)
 
 def _pmd_toon_textures_feedback(pmd_model):
     PMDToonTextureManager.ensure_toon_texture_obj_exists()
@@ -293,26 +346,51 @@ class PmdMaterialFeedbackOperator(bpy.types.Operator):
         if (not self.__model) and (self.filepath != ""):
             try:
                 _file_realpath = bpy.path.abspath(self.filepath)
-                self.__model = pymeshio.pmd.reader.read_from_file(_file_realpath)
+                if self.is_pmd():
+                    import pymeshio.pmd.reader
+                    self.__model = pymeshio.pmd.reader.read_from_file(_file_realpath)
+                else:
+                    import pymeshio.pmx.reader
+                    self.__model = pymeshio.pmx.reader.read_from_file(_file_realpath)
             except:
                 traceback.print_exc()
         return self.__model
     def __clear_model(self):
         self.__model = None
     
+    def __prepare_blender_material(self, name):
+        if name in bpy.data.materials:
+            return bpy.data.materials[name]
+        else:
+            return bpy.data.materials.new(name)
+    
+    def is_pmd(self):
+        return self.filepath.lower().endswith(".pmd")
+    
     def execute(self, context):
         if not self.__get_model():
             return { 'CANCELLED' }
+        model = self.__get_model()
         _base_dirpath = os.path.dirname(bpy.path.abspath(self.filepath))
-        # Feedback Toon Textures
-        if self.toon_textures:
-            _pmd_toon_textures_feedback(self.__get_model())
+        # Feedback PMD Toon Textures
+        if self.toon_textures and self.is_pmd():
+            _pmd_toon_textures_feedback(model)
         # Feedback Materials
         for item in self.material_pairs:
             if (not item.enable) or (len(item.name) <= 0):
                 continue
-            _pmd_material_feedback_by_name(self.__get_model(), item.index, item.name, _base_dirpath)
-            
+            if item.index not in range(len(model.materials)):
+                print("WARNING: material index out of range")
+                continue
+            # Get PMD/PMX Material
+            model_mat = model.materials[item.index]
+            # Prepare Blender Material (create new one when the material does't exists.)
+            bl_mat = self.__prepare_blender_material(item.name)
+            # Initialize material parameters
+            if self.is_pmd():
+                _pmd_material_feedback(model_mat, bl_mat, _base_dirpath)
+            else:
+                _pmx_material_feedback(model, model_mat, bl_mat, _base_dirpath)
         self.__clear_model()
         return { 'FINISHED' }
     
@@ -320,12 +398,18 @@ class PmdMaterialFeedbackOperator(bpy.types.Operator):
         if not self.__get_model():
             return { 'CANCELLED' } # Model loading is failed.
         else: # Success! Continue...
-            # Load Last Export Information
-            ex_info = export_extender.ExportInfo.load().materials
-            for i, m in enumerate(self.__get_model().materials):
-                item = self.material_pairs.add()
-                item.index = i
-                item.name = ex_info[i]["name"] if i < len(ex_info) else ""
+            if self.is_pmd():
+                # Load Last Export Information
+                ex_info = export_extender.ExportInfo.load().materials
+                for i, m in enumerate(self.__get_model().materials):
+                    item = self.material_pairs.add()
+                    item.index = i
+                    item.name = ex_info[i]["name"] if i < len(ex_info) else ""
+            else:
+                for i, m in enumerate(self.__get_model().materials):
+                    item = self.material_pairs.add()
+                    item.index = i
+                    item.name = m.name
             return context.window_manager.invoke_props_dialog(self, width=500)
     
     def draw(self, context):
@@ -349,6 +433,8 @@ class PmdMaterialFeedbackCmdOperator(bpy.types.Operator):
     bl_label = "Feedback PMD Materials"
     
     filepath = bpy.props.StringProperty(subtype="FILE_PATH")
+    
+    filter_glob = bpy.props.StringProperty(default="*.pmd;*.pmx", options={ 'HIDDEN' })
     
     def execute(self, context):
         # We must call it with 'INVOKE_DEFAULT'.
