@@ -557,7 +557,6 @@ class BoneDB(BaseClass):
         if Context.current().mode == 'pmd':
             db.__index_fixup_for_pmd()
 
-
 class BoneSetup(BaseClass):
     @classmethod
     def __context(cls):
@@ -738,19 +737,22 @@ class RigidDefReader:
     def __init__(self, bone_index_func=None, bone_pos_func=None):
         self.boneName2Index = bone_index_func if bone_index_func else (lambda n: 0xFFFF)
         self.boneIndex2Pos = bone_pos_func if bone_pos_func else (lambda i: None)
-        self.filepath = Config().lookup("physics.pmde_rigid", None)
+        self.filepath = Config().lookup("physics.pmde_rigid", [])
     
     @classmethod
     def __read_entries(cls, filepath):
-        with open_file_safe(filepath) as f:
-            for elem in get_n_elements(cleanup_lines(f), 10):
-                yield elem
+        if isinstance(filepath, str):
+            filepath = [ filepath ]
+        for path in filepath:
+            with open_file_safe(bpy.path.abspath(path)) as f:
+                for elem in get_n_elements(cleanup_lines(f), 10):
+                    yield elem
 
     def create_rigids(self, constructor):
         """RigidBodyオブジェクトを作成してイテレータとして取得する"""
         if self.filepath is None:
             return
-        for lines in self.__read_entries(bpy.path.abspath(self.filepath)):
+        for lines in self.__read_entries(self.filepath):
             try:
                 rigid = constructor(lines[0])
                 # 関連ボーン
@@ -798,19 +800,22 @@ class JointDefReader:
     
     def __init__(self, rigidNameMap={}):
         self.rigidNameMap = rigidNameMap
-        self.filepath = Config().lookup("physics.pmde_joint", None)
+        self.filepath = Config().lookup("physics.pmde_joint", [])
     
     @classmethod
     def __read_entries(cls, filepath):
-        with open_file_safe(filepath) as f:
-            for elem in get_n_elements(cleanup_lines(f), 11):
-                yield elem
+        if isinstance(filepath, str):
+            filepath = [ filepath ]
+        for path in filepath:
+            with open_file_safe(bpy.path.abspath(path)) as f:
+                for elem in get_n_elements(cleanup_lines(f), 11):
+                    yield elem
 
     def create_joints(self, constructor):
         """Constraintオブジェクトを作成してイテレータとして取得する"""
         if self.filepath is None:
             return
-        for lines in self.__read_entries(bpy.path.abspath(self.filepath)):
+        for lines in self.__read_entries(self.filepath):
             try:
                 joint = constructor(lines[0])
                 # 接続剛体A
