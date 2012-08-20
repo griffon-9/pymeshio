@@ -43,9 +43,11 @@ import sys
 if "bl" in locals():
     imp.reload(bl)
     imp.reload(pymeshio)
+    imp.reload(mmd_physics)
 else:
     from . import bl
     from . import pymeshio
+    from . import mmd_physics
 
 PYMESHIO_BASE_VERSION = "2.6.5"
 
@@ -97,6 +99,7 @@ class BaseClass:
             'PYMESHIO_1X_COMPAT_BONES',
             'APPLY_MODIFIER',
             'AUTO_ASYM_SHAPEKEYS',
+            'PHYSICS_GENERATOR',
         ]
         def __init__(self):
             for name in self.__slots__:
@@ -556,6 +559,8 @@ class BoneDB(BaseClass):
         # PMD出力時のPMDエディタに対する対策
         if Context.current().mode == 'pmd':
             db.__index_fixup_for_pmd()
+        
+        Physics.setup(obj)
 
 class BoneSetup(BaseClass):
     @classmethod
@@ -849,6 +854,41 @@ class JointDefReader:
                 yield joint
             except ValueError:
                 traceback.print_exc()
+
+class Physics(BaseClass):
+    @classmethod
+    def __internal_init(cls):
+        if not cls.features.PHYSICS_GENERATOR:
+            return []
+        conf = Config().lookup("physics", {})
+        generators = []
+        if "skirt_generator" in conf:
+            generators.append( mmd_physics.SkirtPhysicsGenerator(conf["skirt_generator"]) )
+        return generators
+    
+    @classmethod
+    def current_generators(cls):
+        ctx = Context.current()
+        if not ctx.physics_gen:
+            ctx.physics_gen = cls.__internal_init()
+        return ctx.physics_gen
+    
+    @classmethod
+    def setup(cls, armature_obj):
+        for gen in cls.current_generators():
+            gen.setup(armature_obj, armature_obj.data, armature_obj.matrix_world)
+    
+    @classmethod
+    def create_rigids(cls, constructor, bone_index_func):
+        for gen in cls.current_generators():
+            for rigid in gen.generate_rigids(constructor, bone_index_func):
+                yield rigid
+    
+    @classmethod
+    def create_joints(cls, constructor, rigid_index_func):
+        for gen in cls.current_generators():
+            for joint in gen.generate_joints(constructor, rigid_index_func):
+                yield joint
 
 class Config(collections.UserDict):
     __config = None

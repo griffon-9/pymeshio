@@ -414,6 +414,11 @@ def create_pmx(ex, enableBdef4=True):
     for rigidBody in export_extender.RigidDefReader(bone_index_func, None).create_rigids(rigid_constructor):
         rigidNameMap[rigidBody.name] = len(rigidNameMap)
         model.rigidbodies.append(rigidBody)
+    
+    for rigidBody in export_extender.Physics.create_rigids(rigid_constructor, bone_index_func):
+        rigidNameMap[rigidBody.name] = len(rigidNameMap)
+        model.rigidbodies.append(rigidBody) 
+    
     print("RigidBody Total:", len(model.rigidbodies))
 
     # joint
@@ -473,6 +478,11 @@ def create_pmx(ex, enableBdef4=True):
             spring_constant_rotation=common.Vector3(0,0,0) )
     for joint in export_extender.JointDefReader(rigidNameMap).create_joints(joint_constructor):
         model.joints.append(joint)
+    
+    rigid_index_func = lambda n: rigidNameMap.get(n, 0xFFFF)
+    for joint in export_extender.Physics.create_joints(joint_constructor, rigid_index_func):
+        model.joints.append(joint)
+    
     print("Joint Total:", len(model.joints))
 
     return model
