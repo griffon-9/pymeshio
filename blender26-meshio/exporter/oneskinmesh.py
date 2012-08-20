@@ -69,7 +69,7 @@ class OneSkinMesh(object):
                 armatureObj=bl.modifier.getArmatureObject(m)
                 if not self.armatureObj:
                     self.armatureObj=armatureObj
-                elif self.armatureObj!=armatureObj:
+                elif armatureObj and self.armatureObj!=armatureObj:
                     print("warning! found multiple armature. ignored.", 
                             armatureObj.name)
 
