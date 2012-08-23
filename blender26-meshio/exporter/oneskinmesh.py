@@ -494,4 +494,5 @@ class OneSkinMesh(object):
                 ext_w=self.vertexArray.ext_weight[i]
                 ext_w.entries.extend( filter( lambda ent: not ent[0].startswith("_"), \
                     ((obj.vertex_groups[vg.group].name, vg.weight) for vg in v.groups) ) )
+                export_extender.Deform.handle_special_deform(ext_w)
 

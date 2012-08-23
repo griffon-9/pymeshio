@@ -49,11 +49,13 @@ class VertexKey(object):
 
 class ExtendedWeights:
     __slots__=[
-        'entries'
+        'entries',
+        'hook',
     ]
 
     def __init__(self):
         self.entries=[]
+        self.hook=None
 
     def each_entries(self, filter_func=lambda n, w: True):
         for ent in self.entries:

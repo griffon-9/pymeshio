@@ -36,11 +36,17 @@ def create_pmx(ex, enableBdef4=True):
             self.count_bdef2=0
             self.count_bdef4=0
             self.count_error=0
+            self.count_hook=0
         
         def __filter(self, name, weight):
             return name in self.bone_names
         
         def __call__(self, ext_weight):
+            if ext_weight.hook:
+                d = ext_weight.hook(ext_weight, self.__filter, self.skeleton.indexByName)
+                if d:
+                    self.count_hook+=1
+                    return d
             weights=[ (self.skeleton.indexByName(w[0]), w[1]) \
                 for w in ext_weight.get_normalized(4, self.__filter) ]
             if len(weights)==0:
@@ -66,6 +72,7 @@ def create_pmx(ex, enableBdef4=True):
             print("BDEF Statistics >>>")
             print("\tBDEF1: %d BDEF2: %d BDEF4: %d ERROR: %d" % \
                 (self.count_bdef1, self.count_bdef2, self.count_bdef4, self.count_error))
+            print("\tHOOK: %d" % self.count_hook)
     deform_builder=DeformBuilder(ex.skeleton)
 
     def get_deform(b0, b1, weight):

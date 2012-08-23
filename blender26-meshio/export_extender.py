@@ -100,6 +100,7 @@ class BaseClass:
             'APPLY_MODIFIER',
             'AUTO_ASYM_SHAPEKEYS',
             'PHYSICS_GENERATOR',
+            'QTWIST',
         ]
         def __init__(self):
             for name in self.__slots__:
@@ -560,6 +561,7 @@ class BoneDB(BaseClass):
         if Context.current().mode == 'pmd':
             db.__index_fixup_for_pmd()
         
+        Deform.scan_armature(obj)
         Physics.setup(obj)
 
 class BoneSetup(BaseClass):
@@ -629,6 +631,74 @@ class BoneSetup(BaseClass):
         if not cls.features.BTDA:
             return default_layer
         return BoneDB.get_by_name(bone_name).level
+
+class Deform(BaseClass):
+    @classmethod
+    def __context(cls):
+        ctx = Context.current()
+        if not ctx.qtwist_conf:
+            ctx.qtwist_conf = Config().lookup("deform.qtwist", {})
+            ctx.qtwist_data = { }
+        return ctx
+
+    class QTwistData:
+        def __init__(self, bone0, bone1, c, r0, r1):
+            self.bone0 = bone0
+            self.bone1 = bone1
+            self.c  = c
+            self.r0 = r0
+            self.r1 = r1
+
+    @classmethod
+    def __qtwist_key(cls, bone_name0, bone_name1):
+        return tuple(sorted([ bone_name0, bone_name1 ]))
+
+    @classmethod
+    def __qtwist_hook(cls, ext_w, filter_func, index_func):
+        from .pymeshio import pmx
+        from .pymeshio import common
+        ctx = cls.__context()
+        weights = [ w for w in ext_w.get_normalized(2, filter_func) ]
+        if len(weights) != 2:
+            return None
+        key = cls.__qtwist_key(weights[0][0], weights[1][0])
+        if key not in ctx.qtwist_data:
+            return None
+        data = ctx.qtwist_data[key]
+        if weights[0][0] != data.bone0:
+            weights.reverse() # ウェイトの順序が逆
+        return pmx.Sdef(index_func(weights[0][0]), index_func(weights[1][0]),
+            weights[0][1], common.Vector3(*data.c),
+            common.Vector3(*data.r0), common.Vector3(*data.r1))
+
+    @classmethod
+    def handle_special_deform(cls, ext_w):
+        ctx = cls.__context()
+        if cls.features.QTWIST:
+            # 指定ボーンのウェイトが設定されていたらフックを仕掛けておく
+            for name in ctx.qtwist_conf:
+                bone_names = { n for n, w in ext_w.entries }
+                if name in bone_names:
+                    ext_w.hook = cls.__qtwist_hook
+                    break
+
+    @classmethod
+    def scan_armature(cls, obj):
+        armature = obj.data
+        ctx = cls.__context()
+        if cls.features.QTWIST:
+            matrix = obj.matrix_world
+            for bone, parent in ( (b, b.parent) for b in armature.bones if b.parent):
+                if bone.name in ctx.qtwist_conf:
+                    key = cls.__qtwist_key(bone.name, parent.name)
+                    # SDEFパラメータ計算
+                    c = (matrix * bone.head_local).to_3d().xzy # 接続位置
+                    b1 = (matrix * bone.tail_local).to_3d().xzy # 子ボーン側逆端
+                    b0 = (matrix * parent.head_local).to_3d().xzy # 親ボーン側逆端
+                    r1 = c + (b1 - c).normalized()
+                    r0 = c + (b0 - c).normalized()
+                    ctx.qtwist_data[key] = cls.QTwistData(parent.name, bone.name,
+                        c.to_tuple(), r0.to_tuple(), r1.to_tuple())
 
 
 class MaterialSetup:
