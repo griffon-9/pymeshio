@@ -69,6 +69,14 @@ class Writer(common.BinaryWriter):
             self.write_float(deform.weight1)
             self.write_float(deform.weight2)
             self.write_float(deform.weight3)
+        elif isinstance(deform, pmx.Sdef):
+            self.write_int(3, 1)
+            self.write_bone_index(deform.index0)
+            self.write_bone_index(deform.index1)
+            self.write_float(deform.weight0)
+            self.write_vector3(deform.sdef_c)
+            self.write_vector3(deform.sdef_r0)
+            self.write_vector3(deform.sdef_r1)
         else:
             raise pymeshio.common.WriteException(
                     "unknown deform type: {0}".format(deform.type))
