@@ -68,11 +68,13 @@ class BoneChain:
 class SkirtPhysicsGenerator:
     """スカート等の物理演算設定を生成する"""
     def __init__(self, config):
+        self.config = config
         self.chains = { }
         self.boneName2Index = (lambda n: 0xFFFF)
         self.rigidName2Index = (lambda n: 0xFFFF)
 
-    def setup(self, obj, armature, matrix, prefix="SK"):
+    def setup(self, obj, armature, matrix):
+        prefix = self.config.get("prefix", "SK")
         regex = re.compile(r'^@' + prefix + r'_(\d+)_(\d+)(_[LR])?')
         
         bpy.context.scene.objects.active = obj
@@ -121,8 +123,9 @@ class SkirtPhysicsGenerator:
         # 剛体サイズ
         bone_length = self.__distance(item.tail, item.head) / 2.0 # ボーンの長さ
         # 剛体サイズの単位はおそらくメッシュとは２倍違う？
+        # Blender上でのボーンのZ軸に基づいて剛体のY軸が設定されているはず
         rigid.shape_size.x = bone_length * 1.3
-        rigid.shape_size.y = 0.12 # 0.05 * int(item.order)
+        rigid.shape_size.y = self.config.get("thick", 0.1)
         rigid.shape_size.z = bone_length * 0.8
         # 剛体座標
         mid_point = (item.head + item.tail) / 2.0 # ボーンの中点
@@ -237,16 +240,11 @@ class SkirtPhysicsGenerator:
                 except ValueError:
                     traceback.print_exc()
         # NOTE: 横方向につなぐジョイントの生成も必要
-        bridge_id_list = [
-            ("1_L", "2_L"), ("2_L", "3_L"), ("3_L", "4_L"), ("4_L", "5"),
-            ("1_R", "2_R"), ("2_R", "3_R"), ("3_R", "4_R"), ("4_R", "5"),
-            #("1_R", "1_L"),
-        ]
+        bridge_id_list = self.config.get("bridge", [])
         for id_a, id_b in bridge_id_list:
             chain_a = self.chains[id_a]
             chain_b = self.chains[id_b]
             for item_a, item_b in zip(chain_a.items, chain_b.items):
-                # NOTE: ボーン自身の親との間にジョイントを作成する
                 joint = constructor("%s#%s" % (item_a.name, item_b.name))
                 try:
                     self.__setup_bridge_joint(joint, item_a, item_b)
@@ -254,14 +252,4 @@ class SkirtPhysicsGenerator:
                 except ValueError:
                     traceback.print_exc()
 
-
-class PhysicsTestOperator(bpy.types.Operator):
-    bl_idname = "object.test_mmd_physics"
-    bl_label = "Do Test"
-
-    def execute(self, context):
-        obj = context.active_object
-        g = SkirtPhysicsGenerator()
-        g.setup(obj.data, obj.matrix_world)
-        return {'FINISHED'}
 
