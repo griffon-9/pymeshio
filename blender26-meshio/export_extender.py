@@ -49,7 +49,7 @@ else:
     from . import pymeshio
     from . import mmd_physics
 
-PYMESHIO_BASE_VERSION = "2.6.5"
+PYMESHIO_BASE_VERSION = "2.7.0"
 
 
 def open_file_safe(filename):
