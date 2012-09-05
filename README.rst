@@ -98,6 +98,15 @@ Usage as python module
 
 New
 ---
+2.7.0 (2012-09-05)
+~~~~~~~~~~~~~~~~~~
+* merge griffon-9's pmx bdef4 export implementation
+* merge griffon-9's pmx unsigned short bug fix
+* merge griffon-9's morph assertion buf fix
+* merge griffon-9's shapre group implovement
+* fix mqo import
+* remove 16 material limitation from mqo/pmd/pmx import(not split mesh)
+
 2.6.5 (2012-06-13)
 ~~~~~~~~~~~~~~~~~~
 * fix and implovement vertex morph for pmd/pmx exporter. thanks to griffon-9

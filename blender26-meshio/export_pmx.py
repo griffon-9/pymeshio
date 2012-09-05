@@ -14,7 +14,7 @@ def near(x, y, EPSILON=1e-5):
     return d>=-EPSILON and d<=EPSILON
 
 
-def create_pmx(ex, enableBdef4=True):
+def create_pmx(ex, enable_bdef4=True):
     """
     PMX 出力
     """
@@ -90,14 +90,14 @@ def create_pmx(ex, enableBdef4=True):
         common.Vector3(attribute.nx, attribute.nz, attribute.ny),
         # reverse vertical
         common.Vector2(attribute.u, 1.0-attribute.v),
-        deform_builder(ext_weight) if enableBdef4 else \
+        deform_builder(ext_weight) if enable_bdef4 else \
         get_deform(ex.skeleton.indexByName(b0), ex.skeleton.indexByName(b1), weight),
         # edge flag, 0: enable edge, 1: not edge
         1.0 - attribute.edge_flag
         )
         for pos, attribute, b0, b1, weight, ext_weight in ex.oneSkinMesh.vertexArray.zip2()]
 
-    if enableBdef4:
+    if enable_bdef4:
         deform_builder.show()
 
     boneMap=dict([(b.name, i) for i, b in enumerate(ex.skeleton.bones)])

@@ -401,9 +401,9 @@ class OneSkinMesh(object):
 
         # shape keys
         vg=bl.object.getVertexGroup(obj, bl.MMD_SHAPE_GROUP_NAME)
-        if len(vg) == 0:
+        if len(vg)==0:
             print("Auto-complement SHAPE_GROUP :", obj_name)
-            vg = list(range(len(blenderMesh.vertices)))
+            vg=list(range(len(blenderMesh.vertices)))
 
         # base
         used=set()
@@ -455,7 +455,7 @@ class OneSkinMesh(object):
                             continue
                         used.add(i) 
                         morph.add(indexRelativeMap[i], offset)
-            assert(len(morph.offsets)<len(baseMorph.offsets))
+            assert(len(morph.offsets)<=len(baseMorph.offsets))
 
         # sort skinmap
         original=self.morphList[:]
