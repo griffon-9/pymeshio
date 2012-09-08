@@ -412,6 +412,7 @@ class BoneDB(BaseClass):
         # ボーンのIndexは単に名前のリストで管理する
         self.name_list = []
         self.bone_map  = {}
+        self.prune = Config().lookup("bone.prune", {})
     
     def init_data(self, name):
         if not name in self.bone_map:
@@ -419,6 +420,9 @@ class BoneDB(BaseClass):
             self.name_list.append(name)
         return self.bone_map[name]
     
+    def has_data(self, name):
+        return name in self.bone_map
+
     def get_data(self, name):
         return self.bone_map[name]
     
@@ -429,7 +433,7 @@ class BoneDB(BaseClass):
         else:
             parent_data = None
         # Recursive Scanning
-        for b in bones:
+        for b in filter(lambda b: b.name not in self.prune, bones):
             data = self.init_data(b.name)
             data.parent = parent_data
             if parent:
@@ -441,7 +445,9 @@ class BoneDB(BaseClass):
     def __scan_pose(self, obj, pose):
         # NOTE: Constraintの解析は一度全てのBoneの名前を取得した後に実行する
         for b in pose.bones:
-            data = self.bone_map[b.name]
+            if not self.has_data(b.name):
+                continue
+            data = self.get_data(b.name)
             for c in b.constraints:
                 if c.name.startswith("_") or c.mute or not c.is_valid:
                     continue
@@ -466,6 +472,8 @@ class BoneDB(BaseClass):
 
     def __scan_layers(self, armature):
         for b in armature.bones:
+            if not self.has_data(b.name):
+                continue
             data = self.get_data(b.name)
             data.layer_visible = any( (a and b) for a, b in zip(armature.layers, b.layers) )
     
@@ -540,7 +548,7 @@ class BoneDB(BaseClass):
     
     @classmethod
     def get_by_name(cls, name):
-        return cls.current().bone_map[name]
+        return cls.current().get_data(name)
     
     @classmethod
     def scan_armature(cls, obj):
@@ -631,6 +639,11 @@ class BoneSetup(BaseClass):
         if not cls.features.BTDA:
             return default_layer
         return BoneDB.get_by_name(bone_name).level
+
+    @classmethod
+    def bone_filter(cls, bones):
+        db = BoneDB.current()
+        return filter(lambda b: db.has_data(b.name), bones)
 
 class Deform(BaseClass):
     @classmethod

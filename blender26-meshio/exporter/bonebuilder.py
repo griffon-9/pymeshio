@@ -129,7 +129,8 @@ class BoneBuilder(object):
             else:
                 bone.constraint=CONSTRAINT_LIMIT_TRANSLATION
             return bone
-        self.bones=[createBone(i, b) for i, b in enumerate(armature.bones.values())]
+        self.bones=[createBone(i, b) for i, b in \
+            enumerate(export_extender.BoneSetup.bone_filter(armature.bones.values()))]
         self.bones.sort(key=lambda bone: bone.index)
         # name map
         for bone in self.bones:
@@ -144,7 +145,7 @@ class BoneBuilder(object):
             if len(b.children)==0:
                 return
 
-            for i, c in enumerate(b.children):
+            for c in export_extender.BoneSetup.bone_filter(b.children):
                 child=self.boneMap[c.name]
                 if bone:
                     child.parent_index=bone.index
@@ -161,7 +162,7 @@ class BoneBuilder(object):
         # get pose bone info
         ####################
         pose = bl.object.getPose(armatureObj)
-        for b in pose.bones.values():
+        for b in export_extender.BoneSetup.bone_filter(pose.bones.values()):
             bone=self.boneMap[b.name]
             ####################
             # assing bone group
