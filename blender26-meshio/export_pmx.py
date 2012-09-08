@@ -154,6 +154,9 @@ def create_pmx(ex, enable_bdef4=True):
         bone.setFlag(pmx.BONEFLAG_IS_VISIBLE, b.isVisible)
         bone.setFlag(pmx.BONEFLAG_CAN_MANIPULATE, b.canManipulate())
 
+        if not b.hasTail:
+            bone.tail_position=common.Vector3(b.tail[0], b.tail[2], b.tail[1])
+
         if b.ikSolver:
             bone.setFlag(pmx.BONEFLAG_IS_IK, True)
             bone.ik_target_index=b.ikSolver.effector_index

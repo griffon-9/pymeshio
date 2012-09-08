@@ -138,6 +138,8 @@ class BoneBuilder(object):
         # buid tree hierarchy
         def __getBone(bone, b):
             bone.hasTail=not (bl.BONE_USE_TAILOFFSET in b)
+            if not bone.hasTail:
+                bone.tail = (matrix * b.tail_local - matrix * b.head_local)[0:3]
 
             if len(b.children)==0:
                 return
@@ -325,8 +327,8 @@ class BoneBuilder(object):
             if not b.tail_index:
                 b.tail_index=-1
                 if not b.hasTail:
-                    if not b.isFixedAxis():
-                        b.tail=(0, 0, 0)
+                    #if not b.isFixedAxis():
+                    #    b.tail=(0, 0, 0)
                     b.tail_index=-1
 
     def _build_hierarchy(self):
