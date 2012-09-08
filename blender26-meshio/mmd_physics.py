@@ -109,13 +109,10 @@ class SkirtPhysicsGenerator:
         # 剛体タイプ
         rigid.mode = 2 # 物理演算ボーン位置合わせ
         # グループ
-        rigid.collision_group = 2 # 暫定(グループ3)
+        group = self.config.get("group", 3) # デフォルト値(グループ3)
+        rigid.collision_group = group - 1
         # 非衝突グループ
-        target_tmp = 0
-        target_tmp = 0x4
-        #if lines[4] != "[Null]":
-        #    for i in (int(s) for s in lines[4].strip("( )").split()):
-        #        target_tmp = target_tmp | (1 << (i - 1))
+        target_tmp = (1 << (group - 1)) # 自分と同じグループとは非衝突
         #rigid.no_collision_group = 0xFFFF - target_tmp
         rigid.no_collision_group = -(target_tmp + 1) # pymeshioのバグ？ signed shortで処理する
         # 形状
@@ -124,9 +121,9 @@ class SkirtPhysicsGenerator:
         bone_length = self.__distance(item.tail, item.head) / 2.0 # ボーンの長さ
         # 剛体サイズの単位はおそらくメッシュとは２倍違う？
         # Blender上でのボーンのZ軸に基づいて剛体のY軸が設定されているはず
-        rigid.shape_size.x = bone_length * 1.3
+        rigid.shape_size.x = bone_length * self.config.get("w_ratio", 1.2)
         rigid.shape_size.y = self.config.get("thick", 0.1)
-        rigid.shape_size.z = bone_length * 0.8
+        rigid.shape_size.z = bone_length * self.config.get("h_ratio", 0.8)
         # 剛体座標
         mid_point = (item.head + item.tail) / 2.0 # ボーンの中点
         rigid.shape_position.x = mid_point.x
@@ -209,10 +206,10 @@ class SkirtPhysicsGenerator:
             ( 0.0, y_rot, 0.0 )
         # 移動制限Min
         joint.translation_limit_min.x, joint.translation_limit_min.y, joint.translation_limit_min.z = \
-            ( 1.0, 1.0, 1.0 )
+            ( -1.0, -1.0, -1.0 )
         # 移動制限Max
         joint.translation_limit_max.x, joint.translation_limit_max.y, joint.translation_limit_max.z = \
-            ( -1.0, -1.0, -1.0 )
+            ( 1.0, 1.0, 1.0 )
         # 回転制限Min
         joint.rotation_limit_min.x, joint.rotation_limit_min.y, joint.rotation_limit_min.z = \
             ( math.radians(d) for d in ( -60.0, -30.0, -30.0 ) )
