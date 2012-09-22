@@ -299,7 +299,9 @@ def _pmx_material_feedback(model, pmx_material, bl_material, basedir):
         bl_material[key] = pmx_material.hasFlag(flag)
     
     def to_texpath(index):
-        return None if index < 0 else model.textures[index]
+        if index in range(len(model.textures)):
+            return model.textures[index]
+        return None
     ### Texture ###
     _common_texture_feedback(bl_material, to_texpath(pmx_material.texture_index),
                             'DEFAULT', FIND_SLOT_DEFAULT)

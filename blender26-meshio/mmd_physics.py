@@ -59,6 +59,9 @@ class BoneChain:
         item.z_axis = bone.z_axis.xzy
         self.items.append(item)
 
+    def length(self):
+        return len(self.items)
+
     def validate(self):
         self.items.sort(key=lambda i: int(i.order))
     
@@ -101,7 +104,7 @@ class SkirtPhysicsGenerator:
     def __distance(v1, v2):
         return math.sqrt( ((v2.x - v1.x) ** 2) + ((v2.y - v1.y) ** 2) + ((v2.z - v1.z) ** 2) )
     
-    def __setup_rigid(self, rigid, item):
+    def __setup_rigid(self, rigid, item, chain):
         # 関連ボーン
         rigid.bone_index = self.boneName2Index(item.name)
         if rigid.bone_index < 0:
@@ -139,8 +142,8 @@ class SkirtPhysicsGenerator:
         #_param = rigid.param if Context.current().mode == 'pmx' else rigid
         _param = rigid.param
         _param.mass = 0.1
-        _param.linear_damping = 0.99
-        _param.angular_damping = 0.99
+        _param.linear_damping  = 0.99 - (0.1 * (chain.length() - int(item.order)))
+        _param.angular_damping = 0.99 - (0.1 * (chain.length() - int(item.order)))
         _param.restitution = 0.0
         _param.friction = 0.5
 
@@ -152,7 +155,7 @@ class SkirtPhysicsGenerator:
             for item in chain.items:
                 rigid = constructor(item.name)
                 try:
-                    self.__setup_rigid(rigid, item)
+                    self.__setup_rigid(rigid, item, chain)
                     yield rigid
                 except ValueError:
                     traceback.print_exc()
@@ -178,10 +181,10 @@ class SkirtPhysicsGenerator:
             ( 0.0, 0.0, 0.0 )
         # 回転制限Min
         joint.rotation_limit_min.x, joint.rotation_limit_min.y, joint.rotation_limit_min.z = \
-            ( math.radians(d) for d in ( -40.0, 0.0, -20.0 ) )
+            ( math.radians(d) for d in ( -45.0, 0.0, -20.0 ) )
         # 回転制限Max
         joint.rotation_limit_max.x, joint.rotation_limit_max.y, joint.rotation_limit_max.z = \
-            ( math.radians(d) for d in ( 40.0, 0.0, 20.0 ) )
+            ( math.radians(d) for d in ( 45.0, 0.0, 20.0 ) )
         # ばね移動
         joint.spring_constant_translation.x, joint.spring_constant_translation.y, joint.spring_constant_translation.z = \
             ( 0.0, 0.0, 0.0 )
@@ -206,16 +209,16 @@ class SkirtPhysicsGenerator:
             ( 0.0, y_rot, 0.0 )
         # 移動制限Min
         joint.translation_limit_min.x, joint.translation_limit_min.y, joint.translation_limit_min.z = \
-            ( -1.0, -1.0, -1.0 )
+            ( -1.0, -1.0, -0.5 )
         # 移動制限Max
         joint.translation_limit_max.x, joint.translation_limit_max.y, joint.translation_limit_max.z = \
-            ( 1.0, 1.0, 1.0 )
+            ( 1.0, 1.0, 0.5 )
         # 回転制限Min
         joint.rotation_limit_min.x, joint.rotation_limit_min.y, joint.rotation_limit_min.z = \
-            ( math.radians(d) for d in ( -60.0, -30.0, -30.0 ) )
+            ( math.radians(d) for d in ( -20.0, -20.0, -20.0 ) )
         # 回転制限Max
         joint.rotation_limit_max.x, joint.rotation_limit_max.y, joint.rotation_limit_max.z = \
-            ( math.radians(d) for d in ( 60.0, 30.0, 30.0 ) )
+            ( math.radians(d) for d in ( 20.0, 20.0, 20.0 ) )
         # ばね移動
         joint.spring_constant_translation.x, joint.spring_constant_translation.y, joint.spring_constant_translation.z = \
             ( 0.0, 0.0, 0.0 )
